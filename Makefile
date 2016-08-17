@@ -6,8 +6,8 @@ KERNEL_SIZE= 512
 #
 LD = ld
 CC = gcc
-
-LDFLAGS = -Ttext 0x10000 -e _sysEntry
+#　＊＊＊NOTE＊＊＊　-Ttext 0x0000 设置org(起始位置)　
+LDFLAGS = -Ttext 0x0000 -e _sysEntry
 #dir
 BOOT_DIR = boot/
 KERNEL_DIR = kernel/

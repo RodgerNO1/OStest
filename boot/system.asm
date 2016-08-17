@@ -1,3 +1,4 @@
+[org 0000h]
 [SECTION .text]; 32 位代码段
 [BITS	32]
 	global	_sysEntry			;system kernel entry
@@ -24,7 +25,7 @@ _sysEntry:	;系统入口
 	mov edi,eax
 	mov ebp,eax
 	mov esp,eax
-	mov esp,0fffeh
+	mov esp,0ff00h
 	
 	mov ax,SelectorData
 	mov ds,ax
