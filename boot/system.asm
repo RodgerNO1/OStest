@@ -9,9 +9,9 @@
 ;SETUPOFF        equ	0000h
 ;SYSSEG          equ	1700h
 ;SYSOFF          equ	0000h
-SelectorKernel		equ	8
-SelectorData		equ	10
-SelectorVideo		equ	18
+SelectorKernel		equ	08h
+SelectorData		equ	10h
+SelectorVideo		equ	18h
 	
 ;ok,kernel start at here
 _sysEntry:	;系统入口
@@ -26,8 +26,14 @@ _sysEntry:	;系统入口
 	mov esp,eax
 	mov esp,0fffeh
 	
-	mov ds,SelectorData
-
+	mov ax,SelectorData
+	mov ds,ax
+	mov es,ax
+	mov ss,ax
+	mov fs,ax
+	mov	ax, SelectorVideo; 视频段选择子
+	mov	gs, ax
+	
 	call show_pm	;显示pm标志
 
 
@@ -45,8 +51,6 @@ L6:
 
 
 show_pm:
-	mov	ax, SelectorVideo
-	mov	gs, ax			; 视频段选择子(目的)
 
 	mov	edi, (80 * 11 + 79) * 2	; 屏幕第 11 行, 第 79 列。
 	mov	ah, 0Ch			; 0000: 黑底    1100: 红字

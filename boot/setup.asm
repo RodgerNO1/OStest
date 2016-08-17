@@ -148,8 +148,10 @@ LABEL_BEGIN:
 	mov	cr0, eax
 
 	; 真正进入保护模式
-	jmp	dword SelectorKernel:0	; 执行这一句会把 SelectorKernel 装入 cs,
-					; 并跳转到 SelectorKernel:0  处
-; END of [SECTION .s16]
+	jmp	dword SelectorKernel:0	; 执行这一句会把 SelectorKernel 装入 cs,; 并跳转到 SelectorKernel:0  处
+	nop
+	nop
+	nop
+	; END of [SECTION .s16]
 
 ;;;;;;;;;;;;;;;;;;;END;;;;;;;;;;;;;;;;;;;;;;

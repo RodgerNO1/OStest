@@ -35,11 +35,9 @@ setup.bin:$(BOOT_DIR)setup.asm
 clean:
 	rm func.o system_main.o sysfunc.o system.out
 	
-write:write_boot write_system
-	echo "write all finsh"
+write:
+	BinWriter system.bin 0 $(KERNEL_SIZE) $(BOCHS_DIR)a.img 1024
 write_boot:
 	BinWriter boot.bin 0 512 $(BOCHS_DIR)a.img 0
-	BinWriter setup.bin 0 $(SETUP_SIZE) $(BOCHS_DIR)a.img 512
-	
-write_system:
-	BinWriter system.bin 0 $(KERNEL_SIZE) $(BOCHS_DIR)a.img 1024
+	BinWriter setup.bin 0 $(SETUP_SIZE) $(BOCHS_DIR)a.img 512	
+
