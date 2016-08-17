@@ -1,8 +1,9 @@
+; ==========================================
 ; boot.asm
-; 从磁盘扇区装载另外一个程序，并且执行
+; 编译方法：nasm boot.asm -o boot.bin
+; ==========================================
 
 [ORG 0]
-CODE_BEGIN:
         jmp 07C0h:start     ; 跳转到段07C0
 
 start:
@@ -11,7 +12,7 @@ start:
         mov ds, ax
         mov es, ax
 
-
+	;读取setup.bin文件到0800:0000
 reset:                      ; 重置软盘驱动器
         mov ax, 0           ;
         mov dl, 0           ; Drive=0 (=A)
@@ -20,12 +21,12 @@ reset:                      ; 重置软盘驱动器
 
 
 read:
-        mov ax, 1000h       ; ES:BX = 1000:0000
+        mov ax, 0800h       ; ES:BX = 0800h:0000
         mov es, ax          ;
         mov bx, 0           ;
 
         mov ah, 2           ; 读取磁盘数据到地址ES:BX
-        mov al, 5           ; 读取5个扇区
+        mov al, 1           ; 读取1个扇区
         mov ch, 0           ; Cylinder=0
         mov cl, 2           ; Sector=2
         mov dh, 0           ; Head=0
@@ -33,7 +34,7 @@ read:
         int 13h             ; Read!
 
         jc read             ; ERROR => Try again
-
+ 
 set_reg:
         ; 设置段寄存器
         mov ax, cs
@@ -45,7 +46,7 @@ print:
         lodsb           ; AL=字符串存放在DS:SI
 
         cmp al, 0       ; If AL=0 then hang
-        je GO_PROTECT
+        je SETUP
 
         mov ah, 0Eh     ; Print AL
         mov bx, 7
@@ -53,11 +54,9 @@ print:
 
         jmp print       ; 打印下一个字符
 		
-GO_PROTECT:
-        jmp LABEL_BEGIN      ;准备切换到保护模式	
+SETUP:
+        jmp LABEL_BEGIN      ;执行setup.bin	
 msg     db  'Program Loaded Succeed! Hello, myos!',13,10,'$'
-
-;=======================protect_model================================================
 
 ;----------------------------------------------------------------------------
 ; 在下列类型值命名中：
@@ -111,7 +110,7 @@ SA_TIL		EQU	4	; ┛
 ;----------------------------------------------------------------------------
 
 
-; 宏 --------------------------------------------------------------------------------
+; 宏 ------------------------------------------------------------------------
 ;
 ; 描述符
 ; usage: Descriptor Base, Limit, Attr
@@ -140,12 +139,12 @@ SA_TIL		EQU	4	; ┛
 %endmacro ; 共 8 字节
 ; ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+
 [SECTION .gdt]
 ; GDT
 ;                              段基址,       段界限     , 属性
 LABEL_GDT:	   Descriptor       0,                0, 0           ; 空描述符
 LABEL_DESC_CODE32: Descriptor       0, SegCode32Len - 1, DA_C + DA_32; 非一致代码段
-LABEL_DESC_KERNEL:  Descriptor 010000h,           0ffffh, DA_C + DA_32; 内核代码段
 LABEL_DESC_VIDEO:  Descriptor 0B8000h,           0ffffh, DA_DRW	     ; 显存首地址
 ; GDT 结束
 
@@ -155,7 +154,6 @@ GdtPtr		dw	GdtLen - 1	; GDT界限
 
 ; GDT 选择子
 SelectorCode32		equ	LABEL_DESC_CODE32	- LABEL_GDT
-SelectorKernel		equ	LABEL_DESC_KERNEL	- LABEL_GDT
 SelectorVideo		equ	LABEL_DESC_VIDEO	- LABEL_GDT
 ; END of [SECTION .gdt]
 
@@ -219,18 +217,12 @@ LABEL_SEG_CODE32:
 	mov	al, 'P'
 	mov	[gs:edi], ax
 
-	; 准备跳入内核,设置寄存器
-	mov ax,0h
-	mov bx,ax
-	mov cx,ax
-	mov dx,ax
-	
-	mov ds,
-	jmp	dword SelectorKernel:0	; 跳转到被装载的内核程序处，开始执行
+	; 到此停止
+	jmp	1000h:0000
 
 SegCode32Len	equ	$ - LABEL_SEG_CODE32
 ; END of [SECTION .s32]
 
-;TotalCodeLen	equ $ - CODE_BEGIN
-;times 510-TotalCodeLen db 0
+
+;times 510-($-$$) db 0
 ;dw 0AA55h
