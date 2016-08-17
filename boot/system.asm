@@ -1,4 +1,3 @@
-[org 0000h]
 [SECTION .text]; 32 位代码段
 [BITS	32]
 	global	_sysEntry			;system kernel entry
@@ -52,7 +51,9 @@ L6:
 
 
 show_pm:
-
+	mov	ax, SelectorVideo
+	mov	gs, ax			; 视频段选择子(目的)
+	
 	mov	edi, (80 * 11 + 79) * 2	; 屏幕第 11 行, 第 79 列。
 	mov	ah, 0Ch			; 0000: 黑底    1100: 红字
 	mov	al, 'P'
@@ -63,7 +64,7 @@ show_pm:
 
 ;导出函数名
 global _sys_halt
-global _sys_write_mem8
+global _sys_write_vga
 
 ;系统函数实现
 _sys_halt:
@@ -71,14 +72,19 @@ _sys_halt:
 	RET
 ;end _sys_halt
 	
-_sys_write_mem8:;void sys_write_mem8(int addr,int data);
+_sys_write_vga:;void sys_write_vga(int index,int cchar,int color);
 	PUSH EBP
 	MOV EBP,ESP
 	;func code
-	MOV ECX,[EBP+8]
-	MOV AL,[EBP+12]
-	MOV BX,[EBP+16]
-	MOV [ECX],AL
+	mov	ax, SelectorVideo
+	mov	gs, ax			; 视频段选择子(目的)
+	
+	MOV edi,[EBP+8];index
+	MOV ecx,[EBP+12];cchar
+	MOV ebx,[EBP+16];color
+	mov ah,bl
+	mov al,cl
+	mov	[gs:edi], ax
 	;end func code
 	POP EBP
 	RET
