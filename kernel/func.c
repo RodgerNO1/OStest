@@ -26,3 +26,6 @@ void print(){
 	for(i='A';i<='Z';i++)
 	sys_put_char(i);
 }
+void do_timer(){
+	sys_put_char('A');
+}

@@ -6,6 +6,7 @@ void kernel_main(void){
 	i=sub(9,3);
 	cls();
 	print();
+	asm("int $0x70;"::);
 	//for(;;) sys_halt();
 }
 

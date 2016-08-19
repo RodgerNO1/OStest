@@ -1,8 +1,8 @@
 #
 #
 #
-SETUP_SIZE = 104
-KERNEL_SIZE= 512
+SETUP_SIZE = 139
+KERNEL_SIZE= 1024
 #
 LD = ld
 CC = gcc
@@ -16,8 +16,9 @@ BOCHS_DIR = ../vm_bochs/
 
 system.bin:system.out
 	objcopy -I pei-i386 -O binary system.out system.bin
+	objdump	-D system.out>system.txt
 system.out:$(BOOT_DIR)system.o $(KERNEL_DIR)main.o  $(KERNEL_DIR)func.o
-	ld $(LDFLAGS) $(BOOT_DIR)system.o $(KERNEL_DIR)main.o $(KERNEL_DIR)func.o -o system.out
+	ld -Map map.txt $(LDFLAGS) $(BOOT_DIR)system.o $(KERNEL_DIR)main.o $(KERNEL_DIR)func.o -o system.out
 $(BOOT_DIR)system.o:$(BOOT_DIR)system.asm
 	nasm -f coff $(BOOT_DIR)system.asm -o $(BOOT_DIR)system.o
 $(KERNEL_DIR)main.o:$(KERNEL_DIR)main.c
@@ -33,7 +34,7 @@ setup.bin:$(BOOT_DIR)setup.asm
 	nasm -o setup.bin $(BOOT_DIR)setup.asm	
 	
 clean:
-	rm func.o system_main.o sysfunc.o system.out
+	rm -f *.o *out $(BOOT_DIR)*.o $(KERNEL_DIR)*.o
 	
 write:
 	BinWriter system.bin 0 $(KERNEL_SIZE) $(BOCHS_DIR)a.img 1024

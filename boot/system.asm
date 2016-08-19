@@ -1,21 +1,62 @@
+%include	"pm.inc"	; 常量, 宏, 以及一些说明
+
 [SECTION .text]; 32 位代码段
 [BITS	32]
 	global	_sysEntry			;system kernel entry
 	extern _kernel_main
-
-;----------------------------------------
-;system constants
-;SETUPSEG        equ	1000h
-;SETUPOFF        equ	0000h
-;SYSSEG          equ	1700h
-;SYSOFF          equ	0000h
-SelectorKernel		equ	08h
-SelectorData		equ	10h
-SelectorVideo		equ	18h
 	
+	;导出函数名
+	global _sys_halt
+	global _sys_write_vga
+	global _sys_cls
+	global _sys_put_char
+	global _sys_get_cursor
+
+	extern _do_timer
+	
+;----------------------------------------------------------------
+
+; GDT 选择子
+SelectorNormal		equ		08h
+SelectorFlatC		equ	 	10h
+SelectorFlatRW		equ		18h
+SelectorCode		equ		20h
+SelectorData		equ		28h	
+SelectorStack		equ		30h
+SelectorVideo		equ		38h
+
+stack_ptr			equ		0ff00h
+
+;^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^	
 ;ok,kernel start at here
 _sysEntry:	;系统入口
-	;设置寄存器
+	call show_pm	;显示pm标志
+	
+	mov	ax,SelectorData
+	mov	ds,ax
+	mov	es,ax
+	mov	fs,ax
+	mov	gs,ax
+	mov	ss,ax
+	mov esp,stack_ptr
+;call	set_base
+	call setIdt
+;call setGdt
+    mov	ax,SelectorData
+	mov	ds,ax
+	mov	fs,ax
+	mov	gs,ax
+	mov	es,ax
+	mov	ss,ax
+	mov	esp,stack_ptr
+    call Init8259A
+	call setClk		;initialize 8253/54
+
+;	call setPdt
+
+
+GO_MAIN:
+	;寄存器清零
 	xor	eax,eax
 	mov ebx,eax
 	mov ecx,eax
@@ -24,35 +65,115 @@ _sysEntry:	;系统入口
 	mov edi,eax
 	mov ebp,eax
 	mov esp,eax
-	mov esp,0ff00h
-	
+	;设置寄存器
 	mov ax,SelectorData
 	mov ds,ax
 	mov es,ax
+	mov ax,SelectorStack
 	mov ss,ax
+	mov esp,stack_ptr
 	mov fs,ax
 	mov	ax, SelectorVideo; 视频段选择子
-	mov	gs, ax
+	mov	gs, ax	
 	
-	call show_pm	;显示pm标志
-
-
+	;goto main()
 	xor	eax,eax	; These are the parameters to main :-)
 	push eax
 	push eax
 	push eax
 	push L6	; return address for main, if it decides to.
 	push _kernel_main
-	ret
+	ret			;进入main函数
 	;never return
 
 L6:
 	jmp L6	; main should never return here
+;^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-;=============================================================
-;系统函数
-;=============================================================
+;---------------------------------------------------------
+;				本地调用函数
+;---------------------------------------------------------
+make_gate_descriptor:                       ;构造门的描述符（调用门等）
+                                            ;输入：EAX=门代码在段内偏移地址
+                                            ;       BX=门代码所在段的选择子 
+                                            ;       CX=段类型及属性等（各属
+                                            ;          性位都在原始位置）
+                                            ;返回：EDX:EAX=完整的描述符
+         push ebx
+         push ecx
+      
+         mov edx,eax
+         and edx,0xffff0000                 ;得到偏移地址高16位 
+         or dx,cx                           ;组装属性部分到EDX
+       
+         and eax,0x0000ffff                 ;得到偏移地址低16位 
+         shl ebx,16                          
+         or eax,ebx                         ;组装段选择子部分
+      
+         pop ecx
+         pop ebx
+      
+         retf   
+		
+setIdt:
+         ;创建中断描述符表IDT
+         ;前20个向量是处理器异常使用的
+         mov eax,_SpuriousHandler  ;门代码在段内偏移地址
+         mov bx,SelectorCode       ;门代码所在段的选择子
+         mov cx,0x8e00                      ;32位中断门，0特权级
+         call SelectorCode:make_gate_descriptor
 
+         xor esi,esi
+		 mov cx,SelectorData
+		 mov ds,cx
+  .idt0:
+         mov [esi*8],eax
+         mov [esi*8+4],edx
+         inc esi
+         cmp esi,19                         ;安装前20个异常中断处理过程
+         jle .idt0
+
+         ;其余为保留或硬件使用的中断向量
+         mov eax,_UserIntHandler  ;门代码在段内偏移地址
+         mov bx,SelectorCode       ;门代码所在段的选择子
+         mov cx,0x8e00                      ;32位中断门，0特权级
+         call SelectorCode:make_gate_descriptor
+
+  .idt1:
+         mov [esi*8],eax
+         mov [esi*8+4],edx
+         inc esi
+         cmp esi,255                        ;安装普通的中断处理过程
+         jle .idt1
+
+         ;设置实时时钟中断处理过程
+         mov eax,_ClockHandler  ;门代码在段内偏移地址
+         mov bx,SelectorCode       ;门代码所在段的选择子
+         mov cx,0x8e00                      ;32位中断门，0特权级
+         call SelectorCode:make_gate_descriptor
+
+         mov [0x70*8],eax
+         mov [0x70*8+4],edx
+
+         ;准备开放中断
+         lidt [cs:_idtr]                        ;加载中断描述符表寄存器IDTR
+		
+		ret
+	
+;----------------------------------------------------------	
+;end setIdt
+setClk:
+	mov	al,36h
+	out	43h,al
+	wait
+	;mov	ax,11930
+    mov ax,0ffffh
+	out	40h,al
+	wait
+	mov	al,ah
+	out	40h,al
+	wait
+	ret
 show_pm:
 	mov	ax, SelectorVideo
 	mov	gs, ax			; 视频段选择子(目的)
@@ -78,12 +199,84 @@ local_set_cursor:;参数BX
          mov al,bl
          out dx,al
 		 ret
-;导出函数名
-global _sys_halt
-global _sys_write_vga
-global _sys_cls
-global _sys_put_char
-global _sys_get_cursor
+
+; Init8259A 
+Init8259A:
+	mov	al, 011h
+	out	020h, al	; 主8259, ICW1.
+	call	io_delay
+
+	out	0A0h, al	; 从8259, ICW1.
+	call	io_delay   
+
+	mov	al, 020h	; IRQ0 对应中断向量 0x20
+	out	021h, al	; 主8259, ICW2.
+	call	io_delay
+
+	mov	al, 028h	; IRQ8 对应中断向量 0x28
+	out	0A1h, al	; 从8259, ICW2.
+	call	io_delay
+
+	mov	al, 004h	; IR2 对应从8259
+	out	021h, al	; 主8259, ICW3.
+	call	io_delay
+
+	mov	al, 002h	; 对应主8259的 IR2
+	out	0A1h, al	; 从8259, ICW3.
+	call	io_delay
+
+	mov	al, 001h
+	out	021h, al	; 主8259, ICW4.
+	call	io_delay
+
+	out	0A1h, al	; 从8259, ICW4.
+	call	io_delay
+
+	;mov	al, 11111111b	; 屏蔽主8259所有中断
+	mov	al, 11111110b	; 仅仅开启定时器中断
+	out	021h, al	; 主8259, OCW1.
+	call	io_delay
+
+	mov	al, 11111111b	; 屏蔽从8259所有中断
+	out	0A1h, al	; 从8259, OCW1.
+	call	io_delay
+
+	ret
+
+io_delay:
+	nop
+	nop
+	nop
+	nop
+	ret
+; int handler ---------------------------------------------------------------
+_ClockHandler:
+	;call SelectorCode:_do_timer
+	;mov	al, 20h
+	;out	20h, al				; 发送 EOI
+	mov	ah, 0Ch				; 0000: 黑底    1100: 红字
+	mov	al, 'C'
+	mov	[gs:((80 * 0 + 70) * 2)], ax	; 屏幕第 0 行, 第 70 列。
+	iretd
+
+_UserIntHandler:
+	mov	ah, 0Ch				; 0000: 黑底    1100: 红字
+	mov	al, 'I'
+	mov	[gs:((80 * 0 + 70) * 2)], ax	; 屏幕第 0 行, 第 70 列。
+	iretd
+
+_SpuriousHandler:
+	mov	ah, 0Ch				; 0000: 黑底    1100: 红字
+	mov	al, '!'
+	mov	[gs:((80 * 0 + 75) * 2)], ax	; 屏幕第 0 行, 第 75 列。
+	iretd
+; ---------------------------------------------------------------------------
+
+
+	
+;=============================================================
+;							系统API
+;=============================================================
 
 ;系统函数实现
 _sys_halt:
@@ -214,6 +407,6 @@ _sys_put_char:                                ;显示一个字符 vl=字符ascii
 		 ret
 ;end  _sys_put_char 
 	
-
-
-
+;======================data========================================
+_idtr:  dw	256*8-1		;IDT的界限
+        dd	0x00020000	;中断描述符表的线性地址
