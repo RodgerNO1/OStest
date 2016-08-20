@@ -7,6 +7,7 @@ void kernel_main(void){
 	cls();
 	print();
 	asm("int $0x70;"::);
-	//for(;;) sys_halt();
+	asm("sti;"::);
+	for(;;) sys_halt();
 }
 

@@ -6,6 +6,7 @@ extern void sys_write_vga(int index,int cchar,int color);
 extern void sys_cls();
 extern void sys_put_char(int cchar);
 extern int sys_get_cursor();
+#define INT_HANDLER_RETURN asm("leave;retf;"::)
 //==========================================================
 int sub(int a,int b){
 	return a-b;
@@ -28,4 +29,6 @@ void print(){
 }
 void do_timer(){
 	sys_put_char('A');
+	
+	INT_HANDLER_RETURN;
 }

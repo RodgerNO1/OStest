@@ -152,8 +152,8 @@ setIdt:
          mov cx,0x8e00                      ;32位中断门，0特权级
          call SelectorCode:make_gate_descriptor
 
-         mov [0x70*8],eax
-         mov [0x70*8+4],edx
+         mov [0x20*8],eax	;0x20实时时钟中断
+         mov [0x20*8+4],edx
 
          ;准备开放中断
          lidt [cs:_idtr]                        ;加载中断描述符表寄存器IDTR
@@ -185,21 +185,6 @@ show_pm:
 	ret
 ;end show_pm
 
-local_set_cursor:;参数BX
-		 mov dx,0x3d4
-         mov al,0x0e
-         out dx,al
-         mov dx,0x3d5
-         mov al,bh
-         out dx,al
-         mov dx,0x3d4
-         mov al,0x0f
-         out dx,al
-         mov dx,0x3d5
-         mov al,bl
-         out dx,al
-		 ret
-
 ; Init8259A 
 Init8259A:
 	mov	al, 011h
@@ -209,7 +194,7 @@ Init8259A:
 	out	0A0h, al	; 从8259, ICW1.
 	call	io_delay   
 
-	mov	al, 020h	; IRQ0 对应中断向量 0x20
+	mov	al, 020h	; IRQ0 对应中断向量 0x20时钟中断
 	out	021h, al	; 主8259, ICW2.
 	call	io_delay
 
@@ -251,15 +236,13 @@ io_delay:
 	ret
 ; int handler ---------------------------------------------------------------
 _ClockHandler:
-	;call SelectorCode:_do_timer
-	;mov	al, 20h
-	;out	20h, al				; 发送 EOI
-	mov	ah, 0Ch				; 0000: 黑底    1100: 红字
-	mov	al, 'C'
-	mov	[gs:((80 * 0 + 70) * 2)], ax	; 屏幕第 0 行, 第 70 列。
+	mov	al, 20h
+	out	20h, al				; 发送 EOI
+	call SelectorCode:_do_timer
 	iretd
 
 _UserIntHandler:
+	
 	mov	ah, 0Ch				; 0000: 黑底    1100: 红字
 	mov	al, 'I'
 	mov	[gs:((80 * 0 + 70) * 2)], ax	; 屏幕第 0 行, 第 70 列。
@@ -269,6 +252,7 @@ _SpuriousHandler:
 	mov	ah, 0Ch				; 0000: 黑底    1100: 红字
 	mov	al, '!'
 	mov	[gs:((80 * 0 + 75) * 2)], ax	; 屏幕第 0 行, 第 75 列。
+	jmp $					;未知系统中断，系统死循环
 	iretd
 ; ---------------------------------------------------------------------------
 
@@ -332,7 +316,6 @@ _sys_get_cursor:;以下取当前光标位置ax
          out dx,al
          mov dx,0x3d5
          in al,dx                        ;低8位 AX=代表光标位置的16位数
-		 
 		 ret
 ;end _sys_get_cursor		 
 		 
@@ -406,7 +389,21 @@ _sys_put_char:                                ;显示一个字符 vl=字符ascii
 		 pop ds
 		 ret
 ;end  _sys_put_char 
-	
+
+local_set_cursor:;参数BX
+		 mov dx,0x3d4
+         mov al,0x0e
+         out dx,al
+         mov dx,0x3d5
+         mov al,bh
+         out dx,al
+         mov dx,0x3d4
+         mov al,0x0f
+         out dx,al
+         mov dx,0x3d5
+         mov al,bl
+         out dx,al
+		 ret	
 ;======================data========================================
 _idtr:  dw	256*8-1		;IDT的界限
         dd	0x00020000	;中断描述符表的线性地址
