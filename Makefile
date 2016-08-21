@@ -2,7 +2,7 @@
 #
 #
 SETUP_SIZE = 139
-KERNEL_SIZE= 1024
+KERNEL_SIZE= 2048
 #
 LD = ld
 CC = gcc

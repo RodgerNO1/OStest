@@ -11,7 +11,8 @@
 	global _sys_cls
 	global _sys_put_char
 	global _sys_get_cursor
-
+	global _sys_inc_tick
+	global _sys_get_tick
 	extern _do_timer
 	
 ;----------------------------------------------------------------
@@ -318,7 +319,16 @@ _sys_get_cursor:;以下取当前光标位置ax
          in al,dx                        ;低8位 AX=代表光标位置的16位数
 		 ret
 ;end _sys_get_cursor		 
-		 
+_sys_inc_tick:
+		mov ax,SelectorData
+		mov ds,ax 
+		inc dword[ds:0x800]
+		ret
+_sys_get_tick:
+		mov ax,SelectorData
+		mov ds,ax 
+		mov eax,dword[ds:0x800]
+		ret
 _sys_put_char:                                ;显示一个字符 vl=字符ascii
 		 push ds
 		 push es
