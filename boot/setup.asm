@@ -26,6 +26,8 @@ LABEL_DESC_CODE: 	Descriptor 010000h, 	0ffffh, 	DA_CR + DA_32	; 非一致代码�
 LABEL_DESC_DATA:   	Descriptor 020000h,  	0ffffh, 	DA_DRW	     	; 显存首地址
 LABEL_DESC_STACK:	Descriptor 020000h,		0ffffh, 	DA_DRWA | DA_32		; Stack, 32 位
 LABEL_DESC_VIDEO:  	Descriptor 0B8000h,  	0ffffh, 	DA_DRW	     	; 显存首地址
+LABEL_DESC_GDT:		Descriptor 030000h,		0ffffh, 	DA_DRWA | DA_32		
+LABEL_DESC_TSSLDT:	Descriptor 040000h,		0ffffh, 	DA_DRWA | DA_32		
 ; GDT 结束
 
 GdtLen		equ	$ - LABEL_GDT	; GDT长度
@@ -40,6 +42,8 @@ SelectorCode		equ		20h
 SelectorData		equ		28h	
 SelectorStack		equ		30h
 SelectorVideo		equ		38h
+SelectorGdt			equ		40h
+SelectorTssLdt		equ		48h
 ; END of [SECTION .gdt]
 
 [SECTION .s16]
@@ -60,8 +64,30 @@ LABEL_BEGIN:
 
 	; 加载 GDTR
 	lgdt	[GdtPtr]
+
+	;复制GDT到0x30008位置
+	xor	si, si
+	mov si,LABEL_GDT
+	mov ax,0x3000
+	mov es,ax
+	mov di,8
+	cld
+	mov eax,dword[GdtPtr]
+	mov bx,2
+	div bx
+	inc eax
+	mov ecx,eax
+	rep movsw
+	
+	;复制GdtPtr到0x30000位置
+	mov ax,word[GdtPtr]
+	mov word[es:0],ax
+	mov eax,0x30008	;gdt基址
+	mov dword[es:2],eax
 	
 
+	
+	
 	; 关中断
 	cli
 
@@ -81,5 +107,5 @@ LABEL_BEGIN:
 	nop
 	nop
 	; END of [SECTION .s16]
-
+	
 ;;;;;;;;;;;;;;;;;;;END;;;;;;;;;;;;;;;;;;;;;;

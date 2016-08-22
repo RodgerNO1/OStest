@@ -1,7 +1,7 @@
 #
 #
 #
-SETUP_SIZE = 139
+SETUP_SIZE = 203
 KERNEL_SIZE= 2048
 #
 LD = ld
@@ -42,5 +42,3 @@ write_boot:
 	BinWriter boot.bin 0 512 $(BOCHS_DIR)a.img 0
 	BinWriter setup.bin 0 $(SETUP_SIZE) $(BOCHS_DIR)a.img 512	
 
-run:
-	$(BOCHS_DIR)run.bat

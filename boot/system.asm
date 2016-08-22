@@ -25,8 +25,15 @@ SelectorCode		equ		20h
 SelectorData		equ		28h	
 SelectorStack		equ		30h
 SelectorVideo		equ		38h
+SelectorGdt			equ		40h
+SelectorTssLdt		equ		48h
 
 stack_ptr			equ		0ff00h
+
+TSS0_SEL	equ	50h
+LDT0_SEL	equ	58h
+TSS1_SEL	equ	60h
+LDT1_SEL	equ	68h
 
 ;^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^	
 ;ok,kernel start at here
@@ -42,7 +49,7 @@ _sysEntry:	;系统入口
 	mov esp,stack_ptr
 ;call	set_base
 	call setIdt
-;call setGdt
+	call setGdt
     mov	ax,SelectorData
 	mov	ds,ax
 	mov	fs,ax
@@ -160,15 +167,19 @@ setIdt:
          lidt [cs:_idtr]                        ;加载中断描述符表寄存器IDTR
 		
 		ret
-	
+setGdt:
+		mov ax,SelectorGdt
+		mov fs,ax
+		lgdt [fs:0]
+		ret
 ;----------------------------------------------------------	
 ;end setIdt
 setClk:
 	mov	al,36h
 	out	43h,al
 	wait
-	;mov	ax,11930
-    mov ax,0ffffh
+	
+	mov	ax,11930;设置时钟中断频率(1193180/100)即100hz
 	out	40h,al
 	wait
 	mov	al,ah
@@ -417,3 +428,26 @@ local_set_cursor:;参数BX
 ;======================data========================================
 _idtr:  dw	256*8-1		;IDT的界限
         dd	0x00020000	;中断描述符表的线性地址
+;----------------------------------------------
+;TSS0 for task 0,when it is used,the cpu is running
+;user mode,we must have a TSS for save cpu status
+_tss0:	dd	0000h                  ;back link
+		dd	0ff00h, 0030h 			;esp0,  ss0
+		dd	0000h, 0000h           ;esp1,  ss1
+		dd	0000h, 0000h           ;esp2,  ss2
+		dd	0000h                  ;cr3
+		dd	0000h                  ;eip
+		dd	0200h                  ;eflags
+		dd	0000h, 0000h, 0000h, 0000h
+                                   ;eax,  ecx,  edx,  ebx
+		dd	0ff00h            ;esp
+		dd	0000h, 0000h, 0000h    ;ebp, esi, edi
+		dd	0017h, 000fh, 0017h, 0017h, 0017h, 0017h
+						           ;es,  cs,  ss,  ds,  fs,  gs
+		dd	LDT0_SEL		       ;ldt
+		dd	8000000h		       ;trace bitmap
+;LDT0 for task 0,Every task must have private ldt.
+_ldt0:	dd	00000000h, 00000000h   ;dummy
+		dd	00000fffh, 00c0fa00h   ;task 0 code segment
+		dd	00000fffh, 00c0f200h   ;task 0 data segment
+		dd	00000000h, 00000000h

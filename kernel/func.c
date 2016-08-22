@@ -44,8 +44,8 @@ void printChar(char value){
 	sys_put_char(value);
 }
 void do_timer(){
-	sys_inc_tick();//2500tick==1s
-	if(getTimeTick()%(2500*5)==0)
+	sys_inc_tick();//1tick==10ms
+	if(getTimeTick()%(1000)==0)
 	printInt(getTimeTick());
 	
 	INT_HANDLER_RETURN;
