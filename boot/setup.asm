@@ -20,8 +20,8 @@
 ;                              段基址,       段界限     , 属性
 LABEL_GDT:	   		Descriptor       0,		0, 			0           	; 空描述符
 LABEL_DESC_NORMAL:	Descriptor	     0,     0ffffh, 	DA_DRW			; Normal 描述符
-LABEL_DESC_FLAT_C:	Descriptor       0,    0fffffh, 	DA_CR | DA_32 | DA_LIMIT_4K	; 0 ~ 4G
-LABEL_DESC_FLAT_RW:	Descriptor       0,    0fffffh, 	DA_DRW | DA_LIMIT_4K		; 0 ~ 4G
+LABEL_DESC_FLAT_C:	Descriptor       0,    0ffffffh, 	DA_CR | DA_32 | DA_LIMIT_4K	; 0 ~ 4G
+LABEL_DESC_FLAT_RW:	Descriptor       0,    0ffffffh, 	DA_DRW | DA_LIMIT_4K		; 0 ~ 4G
 LABEL_DESC_CODE: 	Descriptor 010000h, 	0ffffh, 	DA_CR + DA_32	; 非一致代码段
 LABEL_DESC_DATA:   	Descriptor 020000h,  	0ffffh, 	DA_DRW	     	; 显存首地址
 LABEL_DESC_STACK:	Descriptor 020000h,		0ffffh, 	DA_DRWA | DA_32		; Stack, 32 位

@@ -2,12 +2,14 @@
 #
 #
 SETUP_SIZE = 203
-KERNEL_SIZE= 2048
+KERNEL_SIZE= 4096
 #
 LD = ld
 CC = gcc
 #　＊＊＊NOTE＊＊＊　-Ttext 0x0000 设置org(起始位置)　
 LDFLAGS = -Ttext 0x0000 -e _sysEntry
+#-w 关闭warning
+CFLAGS  = -c -w -nostdinc -Iinclude	
 #dir
 BOOT_DIR = boot/
 KERNEL_DIR = kernel/
@@ -22,9 +24,9 @@ system.out:$(BOOT_DIR)system.o $(KERNEL_DIR)main.o  $(KERNEL_DIR)func.o
 $(BOOT_DIR)system.o:$(BOOT_DIR)system.asm
 	nasm -f coff $(BOOT_DIR)system.asm -o $(BOOT_DIR)system.o
 $(KERNEL_DIR)main.o:$(KERNEL_DIR)main.c
-	gcc -c $(KERNEL_DIR)main.c -o $(KERNEL_DIR)main.o
+	gcc $(CFLAGS) $(KERNEL_DIR)main.c -o $(KERNEL_DIR)main.o
 $(KERNEL_DIR)func.o:$(KERNEL_DIR)func.c
-	gcc -c $(KERNEL_DIR)func.c -o $(KERNEL_DIR)func.o
+	gcc $(CFLAGS) $(KERNEL_DIR)func.c -o $(KERNEL_DIR)func.o
 
 #可选项
 boot.bin:$(BOOT_DIR)boot.asm
@@ -34,7 +36,7 @@ setup.bin:$(BOOT_DIR)setup.asm
 	nasm -o setup.bin $(BOOT_DIR)setup.asm	
 	
 clean:
-	rm -f *.o *out $(BOOT_DIR)*.o $(KERNEL_DIR)*.o
+	rm -f *.o *out system.bin $(BOOT_DIR)*.o $(KERNEL_DIR)*.o
 	
 write:
 	BinWriter system.bin 0 $(KERNEL_SIZE) $(BOCHS_DIR)a.img 1024

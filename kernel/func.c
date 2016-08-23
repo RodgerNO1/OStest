@@ -1,17 +1,33 @@
 /*
 *系统C函数实现
 */
-extern void sys_halt(void);
-extern void sys_write_vga(int index,int cchar,int color);
-extern void sys_cls();
-extern void sys_inc_tick();
-extern int  sys_get_tick();
-extern void sys_put_char(int cchar);
-extern int sys_get_cursor();
-#define INT_HANDLER_RETURN asm("leave;retf;"::)
-//==========================================================
-int sub(int a,int b){
-	return a-b;
+#include <def.h>
+#include<stdio.h>
+
+void test(){
+	DES_GDT desc;
+	memcopy(0x30010,&desc,sizeof(DES_GDT),SelectorFlatRW,0);
+	/*
+	desc.limit=0x01;
+    desc.baseL=0x02;
+    desc.baseM=0x03;
+    desc.access=0x04;
+    desc.gran=0x05;
+    desc.baseH=0x06;*/
+	memcopy(&desc,0x30100,sizeof(DES_GDT),0,SelectorFlatRW);
+	
+	printHexW(desc.limit);
+	printHexW(desc.baseL);
+	printHexB(desc.baseM);
+	printHexB(desc.access);
+	printHexB(desc.gran);
+	printHexB(desc.baseH);
+	
+	printHexD(&desc);
+}
+
+void memcopy(void *saddr,void *daddr,int size,int ds,int es){
+	sys_memcpy(saddr,daddr,size,ds,es);
 }
 //清屏函数
 void cls(){
@@ -24,25 +40,7 @@ void cls(){
 	*/
 	sys_cls();
 }
-void printInt(int a){
-	int yi=0,result=0;
-    char c[11];
-    if(a==0)c[1]=(yi+48);
-	
-    while(a!=0){
-        yi=a%10;
-        a=a/10;
-        result++;
-        c[result]=(char)(yi+48);
-    }
-    c[0]=(char)result;
-    int i=0;
-    for(i=c[0];i>0;i--)
-    sys_put_char(c[i]);
-}
-void printChar(char value){
-	sys_put_char(value);
-}
+
 void do_timer(){
 	sys_inc_tick();//1tick==10ms
 	if(getTimeTick()%(1000)==0)

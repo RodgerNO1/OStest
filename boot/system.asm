@@ -13,6 +13,8 @@
 	global _sys_get_cursor
 	global _sys_inc_tick
 	global _sys_get_tick
+	global _sys_memcpy
+	
 	extern _do_timer
 	
 ;----------------------------------------------------------------
@@ -297,6 +299,35 @@ _sys_write_vga:;void sys_write_vga(int index,int cchar,int color);
 	POP EBP
 	RET
 ;end _sys_write_vga
+_sys_memcpy:;sys_memcpy(int saddr,int daddr,int size,int ds,int es)
+	push es
+	push ds
+	
+	push ebp
+	mov ebp,esp
+	mov eax,[EBP+28]
+	cmp ax,0	;参数ds=0,不设置ds
+	je	.setes
+	mov ds,ax
+.setes:
+	mov eax,[EBP+32]
+	cmp ax,0	;参数es=0,不设置es
+	je	.domove
+	mov es,ax
+.domove:	
+	xor	esi, esi
+	xor	edi, edi
+	mov esi,[EBP+16]
+	mov edi,[EBP+20]
+	mov ecx,[EBP+24]
+	cld
+	rep movsb
+	
+	leave
+	pop ds
+	pop es
+	ret
+
 
 ;-------------------------------------------------------------------------------
 _sys_cls:;void sys_cls();
@@ -356,18 +387,18 @@ _sys_put_char:                                ;显示一个字符 vl=字符ascii
 		 mov gs, ax			; 视频段选择子
 		 
          cmp cl,0x0d                     ;回车符？
-         jnz .put_0a                     ;不是。看看是不是换行等字符 
-         mov ax,bx                       ;此句略显多余，但去掉后还得改书，麻烦 
+         je .put_0a0d                     ;不是。看看是不是换行等字符 
+		 cmp cl,0x0a
+		 je .put_0a0d
+         jmp .put_other
+
+ .put_0a0d:
+         mov ax,bx                      
          mov bl,80                       
          div bl
          mul bl
-         mov bx,ax
-         jmp .set_cursor
-
- .put_0a:
-         cmp cl,0x0a                     ;换行符？
-         jnz .put_other                  ;不是，那就正常显示字符 
-         add bx,80
+         mov bx,ax	;回到行首
+		 add bx,80	;下一行
          jmp .roll_screen
 
  .put_other:                             ;正常显示字符
