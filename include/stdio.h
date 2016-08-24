@@ -1,6 +1,11 @@
+/*
+*	系统IO函数
+*/
+
 #ifndef _STDIO_H
 #define _STDIO_H
-//
+
+#include<def.h>
 void printHexD(DWORD value){
 
     int yi=0,result=0;

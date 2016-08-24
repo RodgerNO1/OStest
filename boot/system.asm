@@ -14,7 +14,7 @@
 	global _sys_inc_tick
 	global _sys_get_tick
 	global _sys_memcpy
-	
+	global _setGdt
 	extern _do_timer
 	
 ;----------------------------------------------------------------
@@ -51,7 +51,7 @@ _sysEntry:	;系统入口
 	mov esp,stack_ptr
 ;call	set_base
 	call setIdt
-	call setGdt
+	call _setGdt
     mov	ax,SelectorData
 	mov	ds,ax
 	mov	fs,ax
@@ -169,7 +169,7 @@ setIdt:
          lidt [cs:_idtr]                        ;加载中断描述符表寄存器IDTR
 		
 		ret
-setGdt:
+_setGdt:
 		mov ax,SelectorGdt
 		mov fs,ax
 		lgdt [fs:0]

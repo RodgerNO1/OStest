@@ -1,16 +1,18 @@
 #include <def.h>
-
-void cls();
-int sub(int a,int b);
-
+#include <stdio.h>
+#include <sys.h>
+extern void cls();
+extern void int_0x22();
+void task1();
 void kernel_main(void){	
 	cls();
 	char str[]="-----------welcome------------\n";
 	printString(str);
-	
-	test();
-	//memcpy((PLVOID)0x30000,(PLVOID)0x40000,256);
-	//asm("int $0x70;"::);
+	set_int_handler(0x22,int_0x22);
+	//test();
+	asm("int $0x70;"::);
+	asm("int $0x22;"::);
+	creatTask(1,task1);
 	//sched_init();                   /* initialize task 0 and global task struct arrays */
 	//asm("sti;"::);
 	//for(;;) sys_halt();
@@ -18,6 +20,8 @@ void kernel_main(void){
 //		task0();
 //	}
 }
+
+
 /*
 void sched_init()
 {

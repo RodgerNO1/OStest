@@ -2,28 +2,9 @@
 *系统C函数实现
 */
 #include <def.h>
-#include<stdio.h>
 
 void test(){
-	DES_GDT desc;
-	memcopy(0x30010,&desc,sizeof(DES_GDT),SelectorFlatRW,0);
-	/*
-	desc.limit=0x01;
-    desc.baseL=0x02;
-    desc.baseM=0x03;
-    desc.access=0x04;
-    desc.gran=0x05;
-    desc.baseH=0x06;*/
-	memcopy(&desc,0x30100,sizeof(DES_GDT),0,SelectorFlatRW);
-	
-	printHexW(desc.limit);
-	printHexW(desc.baseL);
-	printHexB(desc.baseM);
-	printHexB(desc.access);
-	printHexB(desc.gran);
-	printHexB(desc.baseH);
-	
-	printHexD(&desc);
+
 }
 
 void memcopy(void *saddr,void *daddr,int size,int ds,int es){
@@ -40,13 +21,19 @@ void cls(){
 	*/
 	sys_cls();
 }
-
+void int_0x22()
+{
+	char str[]="int 0x22!\n";
+	printString(str);
+	
+	INT_RETURN;
+}
 void do_timer(){
 	sys_inc_tick();//1tick==10ms
 	if(getTimeTick()%(1000)==0)
 	printInt(getTimeTick());
 	
-	INT_HANDLER_RETURN;
+	FAR_RETURN;
 }
 int getTimeTick(){
 	return sys_get_tick();
