@@ -1,9 +1,8 @@
 #include <def.h>
 #include <stdio.h>
 #include <sys.h>
-extern void cls();
 extern void int_0x22();
-void task1();
+extern void task0();
 void kernel_main(void){	
 	cls();
 	char str[]="-----------welcome------------\n";
@@ -12,7 +11,7 @@ void kernel_main(void){
 	//test();
 	asm("int $0x70;"::);
 	asm("int $0x22;"::);
-	creatTask(1,task1);
+	creatTask(0x1,task0);
 	//sched_init();                   /* initialize task 0 and global task struct arrays */
 	//asm("sti;"::);
 	//for(;;) sys_halt();
@@ -54,7 +53,7 @@ void sched_init()
 /*
  * task0 0
  * Only print a char '0'.
- */
+
 void task0()
 {
     unsigned long i;
@@ -65,6 +64,7 @@ void task0()
         for (i=0; i<0x3fff; i++);
     }
 }
+ */
 /*
  * Task 1
  * print a char 'A',keep it simply...

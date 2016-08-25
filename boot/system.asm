@@ -15,6 +15,7 @@
 	global _sys_get_tick
 	global _sys_memcpy
 	global _setGdt
+	global _sys_test
 	extern _do_timer
 	
 ;----------------------------------------------------------------
@@ -174,6 +175,8 @@ _setGdt:
 		mov fs,ax
 		lgdt [fs:0]
 		ret
+_sys_test:
+		jmp 0x4:0x0
 ;----------------------------------------------------------	
 ;end setIdt
 setClk:

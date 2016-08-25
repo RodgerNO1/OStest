@@ -36,7 +36,7 @@ extern void setGdt();
 #define FAR_RETURN asm("leave;retf;"::)
 #define INT_RETURN asm("leave;iret;"::)
 #define lgdtr asm("lgdt %%fs:(0x0);"::)
-//结构体
+//结构体**注意类型对齐**
 typedef struct gate_struct{         //trap descriptor struct
 	WORD	addrL;                  //base address low 16bits
 	WORD	segsel;                 //segselector
@@ -50,12 +50,18 @@ typedef struct desc_struct{         //descriptor struct,gdt or ldt
 	WORD	limit;                  //segment limit
 	WORD	baseL;                  //base address low 16bits
 	BYTE 	baseM;                  //base address middle 8bits
-	WORD	attribute;              //attribute
+	BYTE	type;              		//attribute
+	BYTE	attrGD;              	//Granularity,界限粒度(0x40,0xc0)
 	BYTE	baseH;                  //address high 8bits
 }Descriptor;
+typedef struct qword_struct{	//定义8字节类型
+	DWORD	qwordL;
+	DWORD	qwordH;
+}QWORD;
 typedef struct gdtr_struct{
 	WORD	gdtLimit;
-	DWORD	phyAddr
+	WORD	phyAddrL;
+	WORD	phyAddrH;
 }GDTR;
 typedef struct tss_struct{
 	DWORD	back_link;

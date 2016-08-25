@@ -3,10 +3,6 @@
 */
 #include <def.h>
 
-void test(){
-
-}
-
 void memcopy(void *saddr,void *daddr,int size,int ds,int es){
 	sys_memcpy(saddr,daddr,size,ds,es);
 }
@@ -27,6 +23,12 @@ void int_0x22()
 	printString(str);
 	
 	INT_RETURN;
+}
+
+void task0()
+{	
+	while(1)
+    printChar('T');
 }
 void do_timer(){
 	sys_inc_tick();//1tick==10ms
