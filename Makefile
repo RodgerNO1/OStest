@@ -1,7 +1,7 @@
 #
 #
 #
-SETUP_SIZE = 203
+SETUP_SIZE = 290
 KERNEL_SIZE= 4096
 #
 LD = ld

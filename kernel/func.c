@@ -29,10 +29,7 @@ void task0()
 {	
 	int i=0;
 	while(1){
-		if(sys_get_tick()%(1000)==6){
-			printChar('A');
-		}
-		printChar('0');
+		printChar('A');
 	}
     while(1)sys_halt();
 }
@@ -40,14 +37,14 @@ void task1()
 {	
 	int i=0;
 	while(1){
-		if(sys_get_tick()%(100)==1){
-			printChar('B');
-		}
+		printChar('B');
 	}
+
 	while(1)sys_halt();
 }
 void do_timer(){
-
+	printChar('I');
+/*
 	if(sys_get_tick()%(50)==1){
 		printInt(sys_get_tick());
 		int pid=0;
@@ -64,6 +61,7 @@ void do_timer(){
 			//asm("ljmp %0,%1"::"i"(0x58),"i"(0x0));
 		}
 	}
+*/
 	FAR_RETURN;
 	
 }

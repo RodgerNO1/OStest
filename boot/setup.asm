@@ -66,15 +66,15 @@ LABEL_BEGIN:
 	lgdt	[GdtPtr]
 
 	;复制GDT到0x30008位置
-	xor	si, si
-	mov si,LABEL_GDT
-	mov ax,0x3000
+	xor	esi, esi
+	mov esi,LABEL_GDT
+	mov eax,0x3000
 	mov es,ax
-	mov di,8
+	mov edi,8
 	cld
 	mov eax,dword[GdtPtr]
-	mov bx,2
-	div bx
+	mov ebx,2
+	div ebx
 	inc eax
 	mov ecx,eax
 	rep movsw
@@ -85,12 +85,19 @@ LABEL_BEGIN:
 	mov eax,0x30008	;gdt基址
 	mov dword[es:2],eax
 	
-
-	
-	
 	; 关中断
 	cli
+	
+	call empty_8042
+	mov al,0d1h
+	out 64h,al
+	call empty_8042
+	mov al,0dfh
+	out 60h,al
+	call empty_8042
+	call Init8259A
 
+	
 	; 打开地址线A20
 	in	al, 92h
 	or	al, 00000010b
@@ -107,5 +114,43 @@ LABEL_BEGIN:
 	nop
 	nop
 	; END of [SECTION .s16]
+Init8259A:
+	;well that went ok,I hope.Now we have to reprogrem the interrupts
+;(20-27h is master ,28-2fh is slover
+	mov al,11h
+	out 20h,al
+	wait
+	out 0a0h,al
+	wait
+	mov al,20h
+	out 21h,al
+	wait
+	mov al,28h
+	out 0a1h,al
+	wait
+	mov al,04h
+	out 21h,al
+	wait
+	mov al,02h
+	out 0a1h,al
+	wait
+	mov al,01h             ;normal EOI method for both
+	;mov al,03h            ;automatica EOI method for both
+	out 21h,al
+	wait
+	out 0a1h,al
+	wait
+	mov al,0ffh
+	out 21h,al
+	wait
+	out 0a1h,al
+	wait
+	ret	
 	
+empty_8042:
+	wait
+	in al,64h
+	test al,02h
+	jnz empty_8042
+	ret	
 ;;;;;;;;;;;;;;;;;;;END;;;;;;;;;;;;;;;;;;;;;;

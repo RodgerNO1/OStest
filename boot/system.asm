@@ -60,7 +60,7 @@ _sysEntry:	;系统入口
 	mov	es,ax
 	mov	ss,ax
 	mov	esp,stack_ptr
-    call Init8259A
+;    call Init8259A
 	call setClk		;initialize 8253/54
 
 ;	call setPdt
@@ -239,12 +239,12 @@ Init8259A:
 	out	0A1h, al	; 从8259, ICW4.
 	call	io_delay
 
-	;mov	al, 11111111b	; 屏蔽主8259所有中断
-	mov	al, 11111110b	; 仅仅开启定时器中断
+	;mov	al, 11111110b	; 屏蔽主8259所有中断
+	mov	al, 0h	; 仅仅开启定时器中断
 	out	021h, al	; 主8259, OCW1.
 	call	io_delay
 
-	mov	al, 11111111b	; 屏蔽从8259所有中断
+	mov	al, 0h	; 屏蔽从8259所有中断
 	out	0A1h, al	; 从8259, OCW1.
 	call	io_delay
 

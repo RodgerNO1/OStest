@@ -17,8 +17,7 @@ void kernel_main(void){
 	asm("sti;"::);
 	int i=0;
 //	while(1){
-//		printInt(i++);
-//		printChar('\n');
+//		printChar('0');
 //	}
 
 	asm("ljmp %0,%1"::"i"(0x58),"i"(0x0));
