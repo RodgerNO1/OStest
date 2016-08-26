@@ -22,25 +22,51 @@ Descriptor creatDescriptor(DWORD baseAddr,WORD limit,BYTE type,BYTE attrGD){
 	LDestor.limit=limit;	//任务代码限制4k
 	LDestor.baseL=baseAddr;	
 	LDestor.baseM=baseAddr>>16;
-	LDestor.type=type;		//0x9a可执行可读,0x82:LDT
+	LDestor.type=type;		//0x9a可执行可读,0x82:LDT,0x89:TSS
 	LDestor.attrGD=attrGD;
 	LDestor.baseH=baseAddr>>24;
 	return LDestor;
 }
-Tss creatTss(DWORD eip,DWORD esp0,DWORD esp,DWORD ds,DWORD ldt){
-   Tss tss={0x0,					//back_link:前tss选择符
+int creatTSS(BYTE task_num,DWORD eip,DWORD esp0,DWORD esp,DWORD ldt){
+   TSS tss={0x0,					//back_link:前tss选择符
 			0x0,0x0,				//esp0,ss0
 			0x0,0x0,0x0,0x0,0x0,	//esp1,ss1,esp2,ss2,cr3
 			0x0,0x0,0x0,0x0,0x0,	//eip,eflags,eax,ecx,edx
 			0x0,0x0,0x0,0x0,0x0,	//ebx,esp,ebp,esi,edi
 			0x0,0x0,0x0,0x0,0x0,0x0,//es,cs,ss,ds,fs,gs
 			0x0,0x0};				//ldt,trace_bitmap
-	tss.esp0=esp0;
-	tss.esp=esp;
-	tss.ss0=ss0;
 	tss.eip=eip;
+	tss.cs=0x8+0x4;
+	tss.esp0=esp0;
+	tss.ss0=0x28;//SelectorData
+	tss.esp=esp;
+	tss.ss=0x10+0x4;
+	tss.ds=0x10+0x4;
+	tss.es=0x10+0x4;
+	tss.fs=0x10+0x4;
+	tss.gs=0x10+0x4;
 	tss.ldt=ldt;
-	return tss;
+	//写入LDT&TSS段
+	DWORD offset=task_num*(3*sizeof(Descriptor)+sizeof(TSS))+3*sizeof(Descriptor);
+	memcopy(&tss,offset,sizeof(TSS),0,SelectorTssLdt);
+	//在GDT中注册tss
+	DWORD tss_phyAddr=0x40000+offset;
+	Descriptor GDestor_tss=creatDescriptor(tss_phyAddr,sizeof(TSS)-1,0x89,0x40);
+	int selector=addDesToGDT(GDestor_tss);
+	return selector;//并返回其全局描述符的选择子
+}
+int creatLDT(BYTE task_num){//在TSS&LDT中创建ldt_num,并返回其全局描述符的选择子
+	Descriptor LDestor[3];
+	LDestor[0]=creatDescriptor(0x0,0x0,0x0,0x0);//空描述符
+	LDestor[1]=creatDescriptor(0x10000,0xffff,0x9a,0x40);	//代码段描述符
+	LDestor[2]=creatDescriptor(0x21000,0xffff,0x92,0x40);	//数据段描述符
+	DWORD offset=task_num*(3*sizeof(Descriptor)+sizeof(TSS));
+	memcopy(&LDestor,offset,3*sizeof(Descriptor),0,SelectorTssLdt);//写入LDT&TSS段
+	//在GDT中注册LDT0
+	DWORD ldt_phyAddr=0x40000+offset;
+	Descriptor GDestor_ldt0=creatDescriptor(ldt_phyAddr,(3*8)-1,0x82,0x40);
+	int selector=addDesToGDT(GDestor_ldt0);
+	return selector;//并返回其全局描述符的选择子
 }
 int addDesToGDT(Descriptor item){
 	//取得gdtr
@@ -59,15 +85,11 @@ int addDesToGDT(Descriptor item){
 }
 //创建LDT,写入LDT 创建TSS,写入TSS,在GDT中注册LDT,在GDT中注册TSS
 void creatTask(BYTE task_num,PLVOID func){
-	Descriptor LDestor=creatDescriptor(0x10000,0xffff,0x9a,0x40);		
-	memcopy(&LDestor,0,sizeof(Descriptor),0,SelectorTssLdt);//写入LDT&TSS段
-	//在GDT中注册LDT0
-	DWORD ldt0_phyAddr=0x40000;
-	Descriptor GDestor_ldt0=creatDescriptor(ldt0_phyAddr,0x8-1,0x82,0x40);
-	int ldt0_sel=addDesToGDT(GDestor_ldt0);
-	Tss tss0=creatTss((DWORD)func,esp0,esp,ss0,ldt0_sel)
+	int ldt0_sel=creatLDT(task_num);
+	DWORD esp0=0xef00-0x1000*task_num;
+	int tss0_sel=creatTSS(task_num,(DWORD)func,esp0,0xff0,ldt0_sel);
 	//asm("lldt %%ax"::"eax"(index));
-	//asm("ljmp %0,%1"::"i"(0x4),"i"(0xa1d));
+	
 
 }
 #endif

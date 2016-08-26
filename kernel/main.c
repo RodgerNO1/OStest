@@ -3,6 +3,7 @@
 #include <sys.h>
 extern void int_0x22();
 extern void task0();
+extern void task1();
 void kernel_main(void){	
 	cls();
 	char str[]="-----------welcome------------\n";
@@ -10,14 +11,18 @@ void kernel_main(void){
 	set_int_handler(0x22,int_0x22);
 	//test();
 	asm("int $0x70;"::);
-	asm("int $0x22;"::);
-	creatTask(0x1,task0);
+	creatTask(0,task0);
+	creatTask(1,task1);
 	//sched_init();                   /* initialize task 0 and global task struct arrays */
-	//asm("sti;"::);
-	//for(;;) sys_halt();
+	asm("sti;"::);
+	int i=0;
 //	while(1){
-//		task0();
+//		printInt(i++);
+//		printChar('\n');
 //	}
+
+	asm("ljmp %0,%1"::"i"(0x58),"i"(0x0));
+	for(;;) sys_halt();
 }
 
 
@@ -50,47 +55,4 @@ void sched_init()
 	ltr(0);                        // load task 0 tr 
 }
 */
-/*
- * task0 0
- * Only print a char '0'.
-
-void task0()
-{
-    unsigned long i;
-
-    while(1)
-    {
-        printChar('0');
-        for (i=0; i<0x3fff; i++);
-    }
-}
- */
-/*
- * Task 1
- * print a char 'A',keep it simply...
- */
-void task1()
-{
-    unsigned long i;
-
-    while(1)
-    {
-        printChar('A');
-        for (i=0; i<0x3fff; i++);
-    }
-}
-/*
- * Task2
- * print a char 'B',also simply...
- */
-void task2()
-{
-    unsigned long i;
-
-    while(1)
-    {
-        printChar('B');
-        for (i=0; i<0x3fff; i++);
-    }
-}
 

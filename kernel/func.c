@@ -27,16 +27,46 @@ void int_0x22()
 
 void task0()
 {	
-	while(1)
-    printChar('T');
+	int i=0;
+	while(1){
+		if(sys_get_tick()%(1000)==6){
+			printChar('A');
+		}
+		printChar('0');
+	}
+    while(1)sys_halt();
+}
+void task1()
+{	
+	int i=0;
+	while(1){
+		if(sys_get_tick()%(100)==1){
+			printChar('B');
+		}
+	}
+	while(1)sys_halt();
 }
 void do_timer(){
-	sys_inc_tick();//1tick==10ms
-	if(getTimeTick()%(1000)==0)
-	printInt(getTimeTick());
-	
+
+	if(sys_get_tick()%(50)==1){
+		printInt(sys_get_tick());
+		int pid=0;
+		memcopy(0x20900,&pid,4,0x18,0);
+		if(pid==0){
+			pid=1;
+			memcopy(&pid,0x20900,4,0,0x18);
+			printChar('A');
+			//asm("ljmp %0,%1"::"i"(0x68),"i"(0x0));
+		}else{
+			pid=0;
+			memcopy(&pid,0x20900,4,0,0x18);
+			printChar('B');
+			//asm("ljmp %0,%1"::"i"(0x58),"i"(0x0));
+		}
+	}
 	FAR_RETURN;
+	
 }
 int getTimeTick(){
-	return sys_get_tick();
+return sys_get_tick();
 }

@@ -129,6 +129,7 @@ make_gate_descriptor:                       ;构造门的描述符（调用门�
 setIdt:
          ;创建中断描述符表IDT
          ;前20个向量是处理器异常使用的
+		 push ds
          mov eax,_SpuriousHandler  ;门代码在段内偏移地址
          mov bx,SelectorCode       ;门代码所在段的选择子
          mov cx,0x8e00                      ;32位中断门，0特权级
@@ -168,12 +169,14 @@ setIdt:
 
          ;准备开放中断
          lidt [cs:_idtr]                        ;加载中断描述符表寄存器IDTR
-		
+		pop ds
 		ret
 _setGdt:
+		push fs
 		mov ax,SelectorGdt
 		mov fs,ax
 		lgdt [fs:0]
+		pop fs
 		ret
 _sys_test:
 		jmp 0x4:0x0
@@ -192,6 +195,7 @@ setClk:
 	wait
 	ret
 show_pm:
+	push gs
 	mov	ax, SelectorVideo
 	mov	gs, ax			; 视频段选择子(目的)
 	
@@ -199,6 +203,7 @@ show_pm:
 	mov	ah, 0Ch			; 0000: 黑底    1100: 红字
 	mov	al, 'P'
 	mov	[gs:edi], ax
+	pop gs
 	ret
 ;end show_pm
 
@@ -255,17 +260,23 @@ io_delay:
 _ClockHandler:
 	mov	al, 20h
 	out	20h, al				; 发送 EOI
+	call _sys_inc_tick		;记录tick,1tick==20ms
 	call SelectorCode:_do_timer
 	iretd
 
 _UserIntHandler:
-	
+	push gs
+	mov	ax, SelectorVideo
+	mov gs,ax
 	mov	ah, 0Ch				; 0000: 黑底    1100: 红字
 	mov	al, 'I'
 	mov	[gs:((80 * 0 + 70) * 2)], ax	; 屏幕第 0 行, 第 70 列。
+	pop gs
 	iretd
 
 _SpuriousHandler:
+	mov	ax, SelectorVideo
+	mov gs,ax
 	mov	ah, 0Ch				; 0000: 黑底    1100: 红字
 	mov	al, '!'
 	mov	[gs:((80 * 0 + 75) * 2)], ax	; 屏幕第 0 行, 第 75 列。
@@ -286,20 +297,22 @@ _sys_halt:
 ;end _sys_halt
 	
 _sys_write_vga:;void sys_write_vga(int index,int cchar,int color);
+	push gs
 	PUSH EBP
 	MOV EBP,ESP
 	;func code
 	mov	ax, SelectorVideo
 	mov	gs, ax			; 视频段选择子
 	
-	MOV edi,[EBP+8];index
-	MOV ecx,[EBP+12];cchar
-	MOV ebx,[EBP+16];color
+	MOV edi,[EBP+12];index
+	MOV ecx,[EBP+16];cchar
+	MOV ebx,[EBP+20];color
 	mov ah,bl
 	mov al,cl
 	mov	[gs:edi], ax
 	;end func code
 	POP EBP
+	pop gs
 	RET
 ;end _sys_write_vga
 _sys_memcpy:;sys_memcpy(int saddr,int daddr,int size,int ds,int es)
@@ -309,12 +322,12 @@ _sys_memcpy:;sys_memcpy(int saddr,int daddr,int size,int ds,int es)
 	push ebp
 	mov ebp,esp
 	mov eax,[EBP+28]
-	cmp ax,0	;参数ds=0,不设置ds
+	cmp eax,0	;参数ds=0,不设置ds
 	je	.setes
 	mov ds,ax
 .setes:
 	mov eax,[EBP+32]
-	cmp ax,0	;参数es=0,不设置es
+	cmp eax,0	;参数es=0,不设置es
 	je	.domove
 	mov es,ax
 .domove:	
@@ -334,18 +347,20 @@ _sys_memcpy:;sys_memcpy(int saddr,int daddr,int size,int ds,int es)
 
 ;-------------------------------------------------------------------------------
 _sys_cls:;void sys_cls();
-	mov	ax, SelectorVideo
-	mov	gs, ax			; 视频段选择子
+	push gs
+	mov	eax, SelectorVideo
+	mov	gs, eax			; 视频段选择子
 	
 	xor edi,edi
-	mov cx,2000			;清空2000字符
-	mov bx,0x0720
+	mov ecx,2000			;清空2000字符
+	mov ebx,0x0720
 .clsloop:
 	mov	word[gs:edi],bx
 	add edi,2
 	loop .clsloop
-	mov bx,0
+	mov ebx,0
 	call local_set_cursor
+	pop gs
 	ret
 ;end _sys_cls
 
@@ -365,14 +380,18 @@ _sys_get_cursor:;以下取当前光标位置ax
 		 ret
 ;end _sys_get_cursor		 
 _sys_inc_tick:
-		mov ax,SelectorData
-		mov ds,ax 
+		push ds
+		mov eax,SelectorData
+		mov ds,eax 
 		inc dword[ds:0x800]
+		pop ds
 		ret
 _sys_get_tick:
-		mov ax,SelectorData
-		mov ds,ax 
+		push ds
+		mov eax,SelectorData
+		mov ds,eax 
 		mov eax,dword[ds:0x800]
+		pop ds
 		ret
 _sys_put_char:                                ;显示一个字符 vl=字符ascii
 		 push ds
@@ -384,10 +403,10 @@ _sys_put_char:                                ;显示一个字符 vl=字符ascii
 		 mov ecx,[ebp+20]				;CX 存放字符
          ;以下取当前光标位置
 		 call _sys_get_cursor
-		 mov bx,ax						;BX 存放光标位置
+		 mov ebx,eax						;BX 存放光标位置
 		 
-		 mov ax, SelectorVideo
-		 mov gs, ax			; 视频段选择子
+		 mov eax, SelectorVideo
+		 mov gs, eax			; 视频段选择子
 		 
          cmp cl,0x0d                     ;回车符？
          je .put_0a0d                     ;不是。看看是不是换行等字符 
@@ -396,42 +415,42 @@ _sys_put_char:                                ;显示一个字符 vl=字符ascii
          jmp .put_other
 
  .put_0a0d:
-         mov ax,bx                      
+         mov eax,ebx                      
          mov bl,80                       
          div bl
          mul bl
-         mov bx,ax	;回到行首
-		 add bx,80	;下一行
+         mov ebx,eax	;回到行首
+		 add ebx,80	;下一行
          jmp .roll_screen
 
  .put_other:                             ;正常显示字符
-         shl bx,1
-         mov [gs:bx],cl
+         shl ebx,1
+         mov [gs:ebx],cl
 
          ;以下将光标位置推进一个字符
-         shr bx,1
-         add bx,1
+         shr ebx,1
+         add ebx,1
 
  .roll_screen:
-         cmp bx,2000                     ;光标超出屏幕？滚屏
+         cmp ebx,2000                     ;光标超出屏幕？滚屏
          jl .set_cursor
 
-         mov ax,SelectorVideo
+         mov eax,SelectorVideo
          mov ds,ax
          mov es,ax
          cld
-         mov si,0xa0
-         mov di,0x00
-         mov cx,1920
+         mov esi,0xa0
+         mov edi,0x00
+         mov ecx,1920
          rep movsw
-         mov bx,3840                     ;清除屏幕最底一行
-         mov cx,80
+         mov ebx,3840                     ;清除屏幕最底一行
+         mov ecx,80
  .cls:
-         mov word[gs:bx],0x0720
-         add bx,2
+         mov word[gs:ebx],0x0720
+         add ebx,2
          loop .cls
 
-         mov bx,1920
+         mov ebx,1920
 
 	 
 .set_cursor:

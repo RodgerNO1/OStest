@@ -79,8 +79,10 @@ void printString(char *str)
 void printInt(int a){
 	int yi=0,result=0;
     char c[11];
-    if(a==0)c[1]=(yi+48);
-	
+    if(a==0){
+		result=1;
+		c[1]=(yi+48);
+	}
     while(a!=0){
         yi=a%10;
         a=a/10;

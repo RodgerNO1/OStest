@@ -90,7 +90,7 @@ typedef struct tss_struct{
 	DWORD	gs;
 	DWORD	ldt;
 	DWORD	trace_bitmap;
-}Tss;
+}TSS;
 typedef struct task_struct{
     DWORD pid;                   //4B
     BYTE pname[16];             //16B
