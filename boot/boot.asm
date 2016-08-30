@@ -41,9 +41,9 @@ load_system:
         mov bx, 0           ;
 
         mov ah, 2           ; 读取磁盘数据到地址ES:BX
-        mov al, 10           ; 读取1个扇区
+        mov al, 18           ; 读取18个扇区
         mov ch, 0           ; Cylinder=0
-        mov cl, 3           ; Sector=2
+        mov cl, 3           ; Sector=3
         mov dh, 0           ; Head=0
         mov dl, 0           ; Drive=0
         int 13h             ; Read!

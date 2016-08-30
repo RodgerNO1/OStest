@@ -31,7 +31,7 @@ LOAD kernel/func.o
                 0x00000218                . = SIZEOF_HEADERS
                 0x00001000                . = ALIGN (__section_alignment__)
 
-.text           0x00000000      0xe00
+.text           0x00000000     0x1400
  *(.init)
  *(.text)
  .text          0x00000000      0x30d boot/system.o
@@ -46,94 +46,112 @@ LOAD kernel/func.o
                 0x00000254                sys_get_tick
                 0x00000264                sys_put_char
  *fill*         0x0000030d        0x3 
- .text          0x00000310      0x780 kernel/main.o
+ .text          0x00000310      0xa20 kernel/main.o
                 0x00000310                printHexD
                 0x000003ca                printHexW
                 0x00000481                printHexB
                 0x0000052b                printString
                 0x00000554                printInt
                 0x00000618                printChar
-                0x00000632                set_int_handler
-                0x00000695                creatDescriptor
-                0x000006e5                creatTSS
-                0x000007e7                creatLDT
-                0x000008f1                addDesToGDT
-                0x000009a2                creatTask
-                0x00000a11                kernel_main
-                0x00000a7f                sched_init
- .text          0x00000a90      0x1a8 kernel/func.o
-                0x00000a90                memcopy
-                0x00000abf                cls
-                0x00000acc                int_0x22
-                0x00000af9                task0
-                0x00000b14                task1
-                0x00000b2f                do_timer
-                0x00000c28                getTimeTick
+                0x00000632                creatDescriptor
+                0x00000682                creatTSS
+                0x00000784                creatLDT
+                0x0000088e                addDesToGDT
+                0x0000093f                creatTask
+                0x000009ae                kernel_main
+                0x00000a16                sched_init
+                0x00000b5a                idt_init
+                0x00000cca                set_int_handler
+ .text          0x00000d30      0x4ec kernel/func.o
+                0x00000d30                memcopy
+                0x00000d5f                cls
+                0x00000d6c                task1
+                0x00000d87                task2
+                0x00000da2                do_timer
+                0x00000e9b                getTimeTick
+                0x00000ea8                handle_int0
+                0x00000ed8                handle_int1
+                0x00000f08                handle_int2
+                0x00000f3c                handle_int3
+                0x00000f6c                handle_int4
+                0x00000f9c                handle_int5
+                0x00000fcc                handle_int6
+                0x00000ffc                handle_int7
+                0x0000102c                handle_int8
+                0x0000105c                handle_int10
+                0x0000108c                handle_int11
+                0x000010bc                handle_int12
+                0x000010ec                handle_int13
+                0x0000111c                handle_int14
+                0x0000114c                handle_int16
+                0x00001180                handle_int17
+                0x000011b4                handle_int18
+                0x000011e8                handle_int19
  *(SORT(.text$*))
  *(.text.*)
  *(.gnu.linkonce.t.*)
  *(.glue_7t)
  *(.glue_7)
-                0x00000c38                ___CTOR_LIST__ = .
-                0x00000c38                __CTOR_LIST__ = .
-                0x00000c38        0x4 LONG 0xffffffff
+                0x0000121c                ___CTOR_LIST__ = .
+                0x0000121c                __CTOR_LIST__ = .
+                0x0000121c        0x4 LONG 0xffffffff
  *(.ctors)
  *(.ctor)
  *(SORT(.ctors.*))
-                0x00000c3c        0x4 LONG 0x0
-                0x00000c40                ___DTOR_LIST__ = .
-                0x00000c40                __DTOR_LIST__ = .
-                0x00000c40        0x4 LONG 0xffffffff
+                0x00001220        0x4 LONG 0x0
+                0x00001224                ___DTOR_LIST__ = .
+                0x00001224                __DTOR_LIST__ = .
+                0x00001224        0x4 LONG 0xffffffff
  *(.dtors)
  *(.dtor)
  *(SORT(.dtors.*))
-                0x00000c44        0x4 LONG 0x0
+                0x00001228        0x4 LONG 0x0
  *(.fini)
  *(.gcc_exc)
                 [!provide]                PROVIDE (etext, .)
                 [!provide]                PROVIDE (_etext, .)
  *(.gcc_except_table)
 
-.data           0x00001000        0x0
-                0x00001000                __data_start__ = .
+.data           0x00002000        0x0
+                0x00002000                __data_start__ = .
  *(.data)
- .data          0x00001000        0x0 kernel/main.o
- .data          0x00001000        0x0 kernel/func.o
+ .data          0x00002000        0x0 kernel/main.o
+ .data          0x00002000        0x0 kernel/func.o
  *(.data2)
  *(SORT(.data$*))
  *(.jcr)
-                0x00001000                __data_end__ = .
+                0x00002000                __data_end__ = .
  *(.data_cygwin_nocopy)
 
-.rdata          0x00001000      0x200
+.rdata          0x00002000      0x200
  *(.rdata)
  *(SORT(.rdata$*))
- .rdata$zzz     0x00001000       0x14 kernel/main.o
- .rdata$zzz     0x00001014       0x14 kernel/func.o
-                0x00001028                __rt_psrelocs_start = .
+ .rdata$zzz     0x00002000       0x14 kernel/main.o
+ .rdata$zzz     0x00002014       0x14 kernel/func.o
+                0x00002028                __rt_psrelocs_start = .
  *(.rdata_runtime_pseudo_reloc)
-                0x00001028                __rt_psrelocs_end = .
+                0x00002028                __rt_psrelocs_end = .
                 0x00000000                __rt_psrelocs_size = (__rt_psrelocs_end - __rt_psrelocs_start)
-                0x00001028                ___RUNTIME_PSEUDO_RELOC_LIST_END__ = .
-                0x00001028                __RUNTIME_PSEUDO_RELOC_LIST_END__ = .
-                0x00001028                ___RUNTIME_PSEUDO_RELOC_LIST__ = (. - __rt_psrelocs_size)
-                0x00001028                __RUNTIME_PSEUDO_RELOC_LIST__ = (. - __rt_psrelocs_size)
+                0x00002028                ___RUNTIME_PSEUDO_RELOC_LIST_END__ = .
+                0x00002028                __RUNTIME_PSEUDO_RELOC_LIST_END__ = .
+                0x00002028                ___RUNTIME_PSEUDO_RELOC_LIST__ = (. - __rt_psrelocs_size)
+                0x00002028                __RUNTIME_PSEUDO_RELOC_LIST__ = (. - __rt_psrelocs_size)
 
-.eh_frame       0x00002000      0x400
+.eh_frame       0x00003000      0x600
  *(.eh_frame*)
- .eh_frame      0x00002000      0x1d8 kernel/main.o
- .eh_frame      0x000021d8       0xf0 kernel/func.o
+ .eh_frame      0x00003000      0x1f8 kernel/main.o
+ .eh_frame      0x000031f8      0x310 kernel/func.o
 
 .pdata
  *(.pdata)
 
-.bss            0x00003000        0x0
-                0x00003000                __bss_start__ = .
+.bss            0x00004000        0x0
+                0x00004000                __bss_start__ = .
  *(.bss)
- .bss           0x00003000        0x0 kernel/main.o
- .bss           0x00003000        0x0 kernel/func.o
+ .bss           0x00004000        0x0 kernel/main.o
+ .bss           0x00004000        0x0 kernel/func.o
  *(COMMON)
-                0x00003000                __bss_end__ = .
+                0x00004000                __bss_end__ = .
 
 .edata
  *(.edata)
@@ -146,50 +164,50 @@ LOAD kernel/func.o
  *(.note.GNU-stack)
  *(.gnu.lto_*)
 
-.idata          0x00003000      0x200
+.idata          0x00004000      0x200
  SORT(*)(.idata$2)
  SORT(*)(.idata$3)
-                0x00003000        0x4 LONG 0x0
-                0x00003004        0x4 LONG 0x0
-                0x00003008        0x4 LONG 0x0
-                0x0000300c        0x4 LONG 0x0
-                0x00003010        0x4 LONG 0x0
+                0x00004000        0x4 LONG 0x0
+                0x00004004        0x4 LONG 0x0
+                0x00004008        0x4 LONG 0x0
+                0x0000400c        0x4 LONG 0x0
+                0x00004010        0x4 LONG 0x0
  SORT(*)(.idata$4)
-                0x00003014                __IAT_start__ = .
+                0x00004014                __IAT_start__ = .
  SORT(*)(.idata$5)
-                0x00003014                __IAT_end__ = .
+                0x00004014                __IAT_end__ = .
  SORT(*)(.idata$6)
  SORT(*)(.idata$7)
 
-.CRT            0x00004000        0x0
-                0x00004000                ___crt_xc_start__ = .
+.CRT            0x00005000        0x0
+                0x00005000                ___crt_xc_start__ = .
  *(SORT(.CRT$XC*))
-                0x00004000                ___crt_xc_end__ = .
-                0x00004000                ___crt_xi_start__ = .
+                0x00005000                ___crt_xc_end__ = .
+                0x00005000                ___crt_xi_start__ = .
  *(SORT(.CRT$XI*))
-                0x00004000                ___crt_xi_end__ = .
-                0x00004000                ___crt_xl_start__ = .
+                0x00005000                ___crt_xi_end__ = .
+                0x00005000                ___crt_xl_start__ = .
  *(SORT(.CRT$XL*))
-                0x00004000                ___crt_xp_start__ = .
+                0x00005000                ___crt_xp_start__ = .
  *(SORT(.CRT$XP*))
-                0x00004000                ___crt_xp_end__ = .
-                0x00004000                ___crt_xt_start__ = .
+                0x00005000                ___crt_xp_end__ = .
+                0x00005000                ___crt_xt_start__ = .
  *(SORT(.CRT$XT*))
-                0x00004000                ___crt_xt_end__ = .
+                0x00005000                ___crt_xt_end__ = .
 
-.tls            0x00004000        0x0
-                0x00004000                ___tls_start__ = .
+.tls            0x00005000        0x0
+                0x00005000                ___tls_start__ = .
  *(.tls$AAA)
  *(.tls)
  *(.tls$)
  *(SORT(.tls$*))
  *(.tls$ZZZ)
-                0x00004000                ___tls_end__ = .
+                0x00005000                ___tls_end__ = .
 
-.endjunk        0x00004000        0x0
+.endjunk        0x00005000        0x0
                 [!provide]                PROVIDE (end, .)
                 [!provide]                PROVIDE (_end, .)
-                0x00004000                __end__ = .
+                0x00005000                __end__ = .
 
 .rsrc
  *(.rsrc)

@@ -9,44 +9,35 @@
 #include<stdio.h>
 
 /* Load tr register. */
-#define ltr(n) asm(\
+#define ltr(SEL) asm(\
 		"ltr %%ax;"\
-		::"a"(_TSS(n)))
+		::"a"(SEL))
 /* Load ldt register. */
-#define lldt(n) asm(\
+#define lldt(SEL) asm(\
 		"lldt %%ax;"\
-		::"a"(_LDT(n)))
+		::"a"(SEL))
 //标志位NT复位,NT复位后iret指令不会造成cpu执行任务切换操作
 #define cl_nt()	asm("pushfl;"\
 		"andl $0xffffbfff,(%esp);"\
 		"popfl;")
 //构造iret返回环境//将SS选择子存入栈中//将SP存入栈中//将eflags存入栈中
 //将cs选择子存入栈中//将1:位置存入栈中//跳转到1:执行//开始用户态执行
-#define move_to_user_mode() \
-__asm__ ("movl %%esp,%%eax\n\t"\
-	"pushl $0x17\n\t"\
-	"pushl %%eax\n\t"\
-	"pushfl\n\t"\
-	"pushl $0x0f\n\t"\
-	"pushl $1f\n\t"\
-	"iret\n"\
-	"1:\tmovl $0x17,%%eax\n\t"\
-	"movw %%ax,%%ds\n\t"\
-	"movw %%ax,%%es\n\t"\
-	"movw %%ax,%%fs\n\t"\
-	"movw %%ax,%%gs"\
-	:::"ax")		
-		
-extern void sys_test();
-void set_int_handler(BYTE int_num,PLVOID func){
-	DES_GATE gate;
-	gate.addrL=(WORD)func;
-	gate.segsel=SelectorCode;
-	gate.paramCnt=0;
-	gate.type=0x8e;	//32位中断门，0特权级
-	gate.addrH=((WORD)(func)>>16);
-	memcopy(&gate,0x20000+int_num*8,sizeof(DES_GATE),0,SelectorFlatRW);//写入中断向量表
-}
+#define move_to_user_mode()\
+	asm volatile(\
+		"movl	%%esp,%%eax;"\
+		"pushl	$0x17;"\
+		"pushl	%%eax;"\
+		"pushfl;"\
+		"pushl	$0x0f;"\
+		"pushl	$0xa14;"\
+		"iret;"\
+		"LL:movl	$0x17,%%eax;"\
+		"movw	%%ax,%%ds;"\
+		"movw	%%ax,%%es;"\
+		"movw	%%ax,%%fs;"\
+		"movw	%%ax,%%gs;"\
+		::)	
+	
 Descriptor creatDescriptor(DWORD baseAddr,WORD limit,BYTE type,BYTE attrGD){
 	Descriptor LDestor;
 	LDestor.limit=limit;	//任务代码限制4k
@@ -68,7 +59,7 @@ int creatTSS(BYTE task_num,DWORD eip,DWORD esp0,DWORD esp,DWORD ldt){
 	tss.eip=eip;
 	tss.cs=0x8+0x4;
 	tss.esp0=esp0;
-	tss.ss0=0x28;//SelectorData
+	tss.ss0=SelectorData;
 	tss.esp=esp;
 	tss.ss=0x10+0x4;
 	tss.ds=0x10+0x4;
@@ -80,7 +71,7 @@ int creatTSS(BYTE task_num,DWORD eip,DWORD esp0,DWORD esp,DWORD ldt){
 	DWORD offset=task_num*(3*sizeof(Descriptor)+sizeof(TSS))+3*sizeof(Descriptor);
 	memcopy(&tss,offset,sizeof(TSS),0,SelectorTssLdt);
 	//在GDT中注册tss
-	DWORD tss_phyAddr=0x40000+offset;
+	DWORD tss_phyAddr=LDTbase+offset;
 	Descriptor GDestor_tss=creatDescriptor(tss_phyAddr,sizeof(TSS)-1,0x89,0x40);
 	int selector=addDesToGDT(GDestor_tss);
 	return selector;//并返回其全局描述符的选择子
@@ -93,7 +84,7 @@ int creatLDT(BYTE task_num,DWORD code_baseAddr,DWORD data_baseAddr){//在TSS&LDT
 	DWORD offset=task_num*(3*sizeof(Descriptor)+sizeof(TSS));
 	memcopy(&LDestor,offset,3*sizeof(Descriptor),0,SelectorTssLdt);//写入LDT&TSS段
 	//在GDT中注册LDT0
-	DWORD ldt_phyAddr=0x40000+offset;
+	DWORD ldt_phyAddr=LDTbase+offset;
 	Descriptor GDestor_ldt0=creatDescriptor(ldt_phyAddr,(3*8)-1,0x82,0x40);
 	int selector=addDesToGDT(GDestor_ldt0);
 	return selector;//并返回其全局描述符的选择子
@@ -101,15 +92,15 @@ int creatLDT(BYTE task_num,DWORD code_baseAddr,DWORD data_baseAddr){//在TSS&LDT
 int addDesToGDT(Descriptor item){
 	//取得gdtr
 	GDTR gdtr;
-	memcopy(0x30000,&gdtr,sizeof(GDTR),SelectorFlatRW,0);
+	memcopy(GDTR_pos,&gdtr,sizeof(GDTR),SelectorFlatRW,0);
 	int index=gdtr.gdtLimit+1;//ldt0选择子
 	//将新desc写入gdt
-	memcopy(&item,0x30008+gdtr.gdtLimit+1,sizeof(Descriptor),0,SelectorFlatRW);
+	memcopy(&item,GDTbase+gdtr.gdtLimit+1,sizeof(Descriptor),0,SelectorFlatRW);
 	//printHexD(sel_ldt0);
 	//printChar('\n');
 	//更新gdtr
 	gdtr.gdtLimit=gdtr.gdtLimit+sizeof(Descriptor);
-	memcopy(&gdtr,0x30000,sizeof(GDTR),0,SelectorFlatRW);
+	memcopy(&gdtr,GDTR_pos,sizeof(GDTR),0,SelectorFlatRW);
 	setGdt();
 	return index;
 }
@@ -120,4 +111,6 @@ void creatTask(BYTE task_num,PLVOID func){
 	int tss0_sel=creatTSS(task_num,(DWORD)func,esp0,0xff0,ldt0_sel);
 	//asm("lldt %%ax"::"eax"(index));	
 }
+
+
 #endif

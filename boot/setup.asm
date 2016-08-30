@@ -24,11 +24,11 @@ LABEL_GDT:	   		Descriptor      0,		0, 			0           	; 空描述符
 DESC_FLAT_C:	Descriptor      0,    	0ffffh, 	DA_CR | DA_32 | DA_LIMIT_4K	; 0 ~ 4G
 DESC_FLAT_RW:	Descriptor      0,    	0ffffh, 	DA_DRW | DA_LIMIT_4K		; 0 ~ 4G
 DESC_CODE: 		Descriptor 		0, 		0a0h, 		DA_CR | DA_32 | DA_LIMIT_4K; 非一致代码段
-DESC_DATA:   	Descriptor 		0,  	0a0h, 		DA_DRW | DA_LIMIT_4K	     	; 显存首地址
+DESC_DATA:   	Descriptor 		0,  	0a0h, 		DA_DRW | DA_LIMIT_4K	    
 DESC_VIDEO:  	Descriptor 0B8000h,  	0ffffh, 	DA_DRW	     	; 显存首地址
 DESC_GDT:		Descriptor 080000h,		0fffh, 		DA_DRW | DA_32		
 DESC_TSSLDT:	Descriptor 081000h,		0efffh, 	DA_DRW | DA_32
-DESC_IDT:		Descriptor 090000h,		0ffffh, 	DA_DRW | DA_32		
+DESC_IDT:		Descriptor 090000h,		0ffffh, 	DA_DRW | DA_32
 ; GDT 结束
 
 GdtLen		equ	$ - LABEL_GDT	; GDT长度
@@ -90,7 +90,7 @@ LABEL_BEGIN:
 	mov es,ax
 	mov edi,0
 	cld
-	mov ecx,4096;4k
+	mov ecx,0x2400;9k
 	rep movsb
 	pop es
 	pop ds

@@ -10,17 +10,20 @@ typedef unsigned short WORD;
 typedef unsigned long DWORD;
 
 // GDT 选择子
-#define SelectorNormal	0x08
-#define SelectorFlatC	0x10
-#define SelectorFlatRW	0x18
-#define SelectorCode	0x20
-#define SelectorData	0x28	
-#define SelectorStack	0x30
-#define SelectorVideo	0x38
-#define SelectorGdt		0x40
-#define SelectorTssLdt	0x48
+#define SelectorFlatC	0x08
+#define SelectorFlatRW	0x10
+#define SelectorCode	0x18
+#define SelectorData	0x20	
+#define SelectorVideo	0x28
+#define SelectorGdt		0x30
+#define SelectorTssLdt	0x38
+#define SelectorIdt		0x40
 
-
+//system constants
+#define GDTR_pos	0x80000
+#define GDTbase	0x80008
+#define LDTbase	0x81000
+#define IDTbase	0x90000
 
 //汇编函数接口
 extern void sys_halt(void);
