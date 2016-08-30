@@ -79,8 +79,8 @@ int creatTSS(BYTE task_num,DWORD eip,DWORD esp0,DWORD esp,DWORD ldt){
 int creatLDT(BYTE task_num,DWORD code_baseAddr,DWORD data_baseAddr){//在TSS&LDT中创建ldt_num,并返回其全局描述符的选择子
 	Descriptor LDestor[3];
 	LDestor[0]=creatDescriptor(0x0,0x0,0x0,0x0);//空描述符
-	LDestor[1]=creatDescriptor(code_baseAddr,0xffff,0x9a,0x40);	//代码段描述符
-	LDestor[2]=creatDescriptor(data_baseAddr,0xffff,0x92,0x40);	//数据段描述符
+	LDestor[1]=creatDescriptor(code_baseAddr,0xffff,0x9a+0x60,0x40);	//代码段描述符
+	LDestor[2]=creatDescriptor(data_baseAddr,0xffff,0x92+0x60,0x40);	//数据段描述符
 	DWORD offset=task_num*(3*sizeof(Descriptor)+sizeof(TSS));
 	memcopy(&LDestor,offset,3*sizeof(Descriptor),0,SelectorTssLdt);//写入LDT&TSS段
 	//在GDT中注册LDT0
@@ -106,7 +106,7 @@ int addDesToGDT(Descriptor item){
 }
 //创建LDT,写入LDT 创建TSS,写入TSS,在GDT中注册LDT,在GDT中注册TSS
 void creatTask(BYTE task_num,PLVOID func){
-	int ldt0_sel=creatLDT(task_num,0x10000,0x21000);
+	int ldt0_sel=creatLDT(task_num,(DWORD)func,0x21000);
 	DWORD esp0=0xef00-0x1000*task_num;
 	int tss0_sel=creatTSS(task_num,(DWORD)func,esp0,0xff0,ldt0_sel);
 	//asm("lldt %%ax"::"eax"(index));	
