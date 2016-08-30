@@ -34,59 +34,60 @@ LOAD kernel/func.o
 .text           0x00000000      0xe00
  *(.init)
  *(.text)
- .text          0x00000000      0x3d8 boot/system.o
+ .text          0x00000000      0x30d boot/system.o
                 0x00000000                sysEntry
-                0x00000116                setGdt
-                0x00000129                sys_test
-                0x000001f1                sys_halt
-                0x000001f3                sys_write_vga
-                0x00000213                sys_memcpy
-                0x00000240                sys_cls
-                0x0000026b                sys_get_cursor
-                0x00000286                sys_inc_tick
-                0x00000297                sys_get_tick
-                0x000002a7                sys_put_char
- .text          0x000003d8      0x798 kernel/main.o
-                0x000003d8                printHexD
-                0x00000492                printHexW
-                0x00000549                printHexB
-                0x000005f3                printString
-                0x0000061c                printInt
-                0x000006e0                printChar
-                0x000006fa                set_int_handler
-                0x0000075d                creatDescriptor
-                0x000007ad                creatTSS
-                0x000008af                creatLDT
-                0x000009bb                addDesToGDT
-                0x00000a6c                creatTask
-                0x00000acb                kernel_main
- .text          0x00000b70       0xc4 kernel/func.o
-                0x00000b70                memcopy
-                0x00000b9f                cls
-                0x00000bac                int_0x22
-                0x00000bd9                task0
-                0x00000bf4                task1
-                0x00000c0f                do_timer
-                0x00000c25                getTimeTick
+                0x0000011e                setGdt
+                0x000001ae                sys_halt
+                0x000001b0                sys_write_vga
+                0x000001d0                sys_memcpy
+                0x000001fd                sys_cls
+                0x00000228                sys_get_cursor
+                0x00000243                sys_inc_tick
+                0x00000254                sys_get_tick
+                0x00000264                sys_put_char
+ *fill*         0x0000030d        0x3 
+ .text          0x00000310      0x780 kernel/main.o
+                0x00000310                printHexD
+                0x000003ca                printHexW
+                0x00000481                printHexB
+                0x0000052b                printString
+                0x00000554                printInt
+                0x00000618                printChar
+                0x00000632                set_int_handler
+                0x00000695                creatDescriptor
+                0x000006e5                creatTSS
+                0x000007e7                creatLDT
+                0x000008f1                addDesToGDT
+                0x000009a2                creatTask
+                0x00000a11                kernel_main
+                0x00000a7f                sched_init
+ .text          0x00000a90      0x1a8 kernel/func.o
+                0x00000a90                memcopy
+                0x00000abf                cls
+                0x00000acc                int_0x22
+                0x00000af9                task0
+                0x00000b14                task1
+                0x00000b2f                do_timer
+                0x00000c28                getTimeTick
  *(SORT(.text$*))
  *(.text.*)
  *(.gnu.linkonce.t.*)
  *(.glue_7t)
  *(.glue_7)
-                0x00000c34                ___CTOR_LIST__ = .
-                0x00000c34                __CTOR_LIST__ = .
-                0x00000c34        0x4 LONG 0xffffffff
+                0x00000c38                ___CTOR_LIST__ = .
+                0x00000c38                __CTOR_LIST__ = .
+                0x00000c38        0x4 LONG 0xffffffff
  *(.ctors)
  *(.ctor)
  *(SORT(.ctors.*))
-                0x00000c38        0x4 LONG 0x0
-                0x00000c3c                ___DTOR_LIST__ = .
-                0x00000c3c                __DTOR_LIST__ = .
-                0x00000c3c        0x4 LONG 0xffffffff
+                0x00000c3c        0x4 LONG 0x0
+                0x00000c40                ___DTOR_LIST__ = .
+                0x00000c40                __DTOR_LIST__ = .
+                0x00000c40        0x4 LONG 0xffffffff
  *(.dtors)
  *(.dtor)
  *(SORT(.dtors.*))
-                0x00000c40        0x4 LONG 0x0
+                0x00000c44        0x4 LONG 0x0
  *(.fini)
  *(.gcc_exc)
                 [!provide]                PROVIDE (etext, .)
@@ -120,8 +121,8 @@ LOAD kernel/func.o
 
 .eh_frame       0x00002000      0x400
  *(.eh_frame*)
- .eh_frame      0x00002000      0x1b8 kernel/main.o
- .eh_frame      0x000021b8       0xf0 kernel/func.o
+ .eh_frame      0x00002000      0x1d8 kernel/main.o
+ .eh_frame      0x000021d8       0xf0 kernel/func.o
 
 .pdata
  *(.pdata)

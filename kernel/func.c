@@ -44,24 +44,24 @@ void task1()
 }
 void do_timer(){
 	printChar('I');
-/*
-	if(sys_get_tick()%(50)==1){
-		printInt(sys_get_tick());
+
+	if(sys_get_tick()%(100)==1){
+		//printInt(sys_get_tick());
 		int pid=0;
 		memcopy(0x20900,&pid,4,0x18,0);
 		if(pid==0){
 			pid=1;
 			memcopy(&pid,0x20900,4,0,0x18);
 			printChar('A');
-			//asm("ljmp %0,%1"::"i"(0x68),"i"(0x0));
+			//asm("push %0;push %1;push %2;iret"::"i"(0x202),"i"(0x20),"i"(0x142));
 		}else{
 			pid=0;
 			memcopy(&pid,0x20900,4,0,0x18);
+			//asm("push %0;push %1;push %2;iret"::"i"(0x202),"i"(0x20),"i"(0x142));
 			printChar('B');
-			//asm("ljmp %0,%1"::"i"(0x58),"i"(0x0));
 		}
 	}
-*/
+
 	FAR_RETURN;
 	
 }

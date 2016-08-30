@@ -21,22 +21,26 @@
 ;----------------------------------------------------------------
 
 ; GDT 选择子
-SelectorNormal		equ		08h
-SelectorFlatC		equ	 	10h
-SelectorFlatRW		equ		18h
-SelectorCode		equ		20h
-SelectorData		equ		28h	
-SelectorStack		equ		30h
-SelectorVideo		equ		38h
-SelectorGdt			equ		40h
-SelectorTssLdt		equ		48h
+SelectorFlatC		equ	 	08h
+SelectorFlatRW		equ		10h
+SelectorCode		equ		18h
+SelectorData		equ		20h	
+SelectorVideo		equ		28h
+SelectorGdt			equ		30h
+SelectorTssLdt		equ		38h
+SelectorIdt			equ		40h
 
-stack_ptr			equ		0ff00h
+stack_ptr			equ		07fff0h
 
 TSS0_SEL	equ	50h
 LDT0_SEL	equ	58h
 TSS1_SEL	equ	60h
 LDT1_SEL	equ	68h
+
+;system constants
+GDTR        	equ	80000h
+GDTbase        	equ	80008h
+IDTbase        	equ	90000h
 
 ;^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^	
 ;ok,kernel start at here
@@ -47,22 +51,22 @@ _sysEntry:	;系统入口
 	mov	ds,ax
 	mov	es,ax
 	mov	fs,ax
-	mov	gs,ax
 	mov	ss,ax
+	mov	ax,SelectorVideo
+	mov	gs,ax
 	mov esp,stack_ptr
-;call	set_base
 	call setIdt
 	call _setGdt
     mov	ax,SelectorData
 	mov	ds,ax
 	mov	fs,ax
-	mov	gs,ax
 	mov	es,ax
 	mov	ss,ax
+	mov	ax,SelectorVideo
+	mov	gs,ax
 	mov	esp,stack_ptr
-;    call Init8259A
 	call setClk		;initialize 8253/54
-
+	call allowClkInt
 ;	call setPdt
 
 
@@ -80,7 +84,6 @@ GO_MAIN:
 	mov ax,SelectorData
 	mov ds,ax
 	mov es,ax
-	mov ax,SelectorStack
 	mov ss,ax
 	mov esp,stack_ptr
 	mov fs,ax
@@ -136,7 +139,7 @@ setIdt:
          call SelectorCode:make_gate_descriptor
 
          xor esi,esi
-		 mov cx,SelectorData
+		 mov cx,SelectorIdt
 		 mov ds,cx
   .idt0:
          mov [esi*8],eax
@@ -166,10 +169,11 @@ setIdt:
 
          mov [0x20*8],eax	;0x20实时时钟中断
          mov [0x20*8+4],edx
-
+		 
+		 pop ds
          ;准备开放中断
-         lidt [cs:_idtr]                        ;加载中断描述符表寄存器IDTR
-		pop ds
+         lidt [_idtr]                        ;加载中断描述符表寄存器IDTR
+
 		ret
 _setGdt:
 		push fs
@@ -178,8 +182,6 @@ _setGdt:
 		lgdt [fs:0]
 		pop fs
 		ret
-_sys_test:
-		jmp 0x4:0x0
 ;----------------------------------------------------------	
 ;end setIdt
 setClk:
@@ -205,51 +207,15 @@ show_pm:
 	mov	[gs:edi], ax
 	pop gs
 	ret
-;end show_pm
 
-; Init8259A 
-Init8259A:
-	mov	al, 011h
-	out	020h, al	; 主8259, ICW1.
-	call	io_delay
-
-	out	0A0h, al	; 从8259, ICW1.
-	call	io_delay   
-
-	mov	al, 020h	; IRQ0 对应中断向量 0x20时钟中断
-	out	021h, al	; 主8259, ICW2.
-	call	io_delay
-
-	mov	al, 028h	; IRQ8 对应中断向量 0x28
-	out	0A1h, al	; 从8259, ICW2.
-	call	io_delay
-
-	mov	al, 004h	; IR2 对应从8259
-	out	021h, al	; 主8259, ICW3.
-	call	io_delay
-
-	mov	al, 002h	; 对应主8259的 IR2
-	out	0A1h, al	; 从8259, ICW3.
-	call	io_delay
-
-	mov	al, 001h
-	out	021h, al	; 主8259, ICW4.
-	call	io_delay
-
-	out	0A1h, al	; 从8259, ICW4.
-	call	io_delay
-
-	;mov	al, 11111110b	; 屏蔽主8259所有中断
-	mov	al, 0h	; 仅仅开启定时器中断
-	out	021h, al	; 主8259, OCW1.
-	call	io_delay
-
-	mov	al, 0h	; 屏蔽从8259所有中断
-	out	0A1h, al	; 从8259, OCW1.
-	call	io_delay
-
-	ret
-
+allowClkInt:
+	mov al,0feh		;mask off all interrupts for now
+	out 21h,al		; 主8259, OCW1.
+	wait
+	out 0a1h,al		; 从8259, OCW1.
+	wait
+	ret	
+	
 io_delay:
 	nop
 	nop
@@ -258,10 +224,18 @@ io_delay:
 	ret
 ; int handler ---------------------------------------------------------------
 _ClockHandler:
-	mov	al, 20h
-	out	20h, al				; 发送 EOI
+    pushad
+	mov al,0x20                        ;中断结束命令EOI
+	out 0xa0,al                        ;向8259A从片发送
+	out 0x20,al                        ;向8259A主片发送
+
+	mov al,0x0c                        ;寄存器C的索引。且开放NMI
+	out 0x70,al
+	in al,0x71                         ;读一下RTC的寄存器C，否则只发生一次中断
+	
 	call _sys_inc_tick		;记录tick,1tick==20ms
 	call SelectorCode:_do_timer
+	popad
 	iretd
 
 _UserIntHandler:
@@ -480,27 +454,5 @@ local_set_cursor:;参数BX
 		 ret	
 ;======================data========================================
 _idtr:  dw	256*8-1		;IDT的界限
-        dd	0x00020000	;中断描述符表的线性地址
+        dd	IDTbase	;中断描述符表的线性地址
 ;----------------------------------------------
-;TSS0 for task 0,when it is used,the cpu is running
-;user mode,we must have a TSS for save cpu status
-_tss0:	dd	0000h                  ;back link
-		dd	0ff00h, 0030h 			;esp0,  ss0
-		dd	0000h, 0000h           ;esp1,  ss1
-		dd	0000h, 0000h           ;esp2,  ss2
-		dd	0000h                  ;cr3
-		dd	0000h                  ;eip
-		dd	0200h                  ;eflags
-		dd	0000h, 0000h, 0000h, 0000h
-                                   ;eax,  ecx,  edx,  ebx
-		dd	0ff00h            ;esp
-		dd	0000h, 0000h, 0000h    ;ebp, esi, edi
-		dd	0017h, 000fh, 0017h, 0017h, 0017h, 0017h
-						           ;es,  cs,  ss,  ds,  fs,  gs
-		dd	LDT0_SEL		       ;ldt
-		dd	8000000h		       ;trace bitmap
-;LDT0 for task 0,Every task must have private ldt.
-_ldt0:	dd	00000000h, 00000000h   ;dummy
-		dd	00000fffh, 00c0fa00h   ;task 0 code segment
-		dd	00000fffh, 00c0f200h   ;task 0 data segment
-		dd	00000000h, 00000000h

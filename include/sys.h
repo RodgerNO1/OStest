@@ -7,6 +7,36 @@
 
 #include<def.h>
 #include<stdio.h>
+
+/* Load tr register. */
+#define ltr(n) asm(\
+		"ltr %%ax;"\
+		::"a"(_TSS(n)))
+/* Load ldt register. */
+#define lldt(n) asm(\
+		"lldt %%ax;"\
+		::"a"(_LDT(n)))
+//标志位NT复位,NT复位后iret指令不会造成cpu执行任务切换操作
+#define cl_nt()	asm("pushfl;"\
+		"andl $0xffffbfff,(%esp);"\
+		"popfl;")
+//构造iret返回环境//将SS选择子存入栈中//将SP存入栈中//将eflags存入栈中
+//将cs选择子存入栈中//将1:位置存入栈中//跳转到1:执行//开始用户态执行
+#define move_to_user_mode() \
+__asm__ ("movl %%esp,%%eax\n\t"\
+	"pushl $0x17\n\t"\
+	"pushl %%eax\n\t"\
+	"pushfl\n\t"\
+	"pushl $0x0f\n\t"\
+	"pushl $1f\n\t"\
+	"iret\n"\
+	"1:\tmovl $0x17,%%eax\n\t"\
+	"movw %%ax,%%ds\n\t"\
+	"movw %%ax,%%es\n\t"\
+	"movw %%ax,%%fs\n\t"\
+	"movw %%ax,%%gs"\
+	:::"ax")		
+		
 extern void sys_test();
 void set_int_handler(BYTE int_num,PLVOID func){
 	DES_GATE gate;
@@ -55,11 +85,11 @@ int creatTSS(BYTE task_num,DWORD eip,DWORD esp0,DWORD esp,DWORD ldt){
 	int selector=addDesToGDT(GDestor_tss);
 	return selector;//并返回其全局描述符的选择子
 }
-int creatLDT(BYTE task_num){//在TSS&LDT中创建ldt_num,并返回其全局描述符的选择子
+int creatLDT(BYTE task_num,DWORD code_baseAddr,DWORD data_baseAddr){//在TSS&LDT中创建ldt_num,并返回其全局描述符的选择子
 	Descriptor LDestor[3];
 	LDestor[0]=creatDescriptor(0x0,0x0,0x0,0x0);//空描述符
-	LDestor[1]=creatDescriptor(0x10000,0xffff,0x9a,0x40);	//代码段描述符
-	LDestor[2]=creatDescriptor(0x21000,0xffff,0x92,0x40);	//数据段描述符
+	LDestor[1]=creatDescriptor(code_baseAddr,0xffff,0x9a,0x40);	//代码段描述符
+	LDestor[2]=creatDescriptor(data_baseAddr,0xffff,0x92,0x40);	//数据段描述符
 	DWORD offset=task_num*(3*sizeof(Descriptor)+sizeof(TSS));
 	memcopy(&LDestor,offset,3*sizeof(Descriptor),0,SelectorTssLdt);//写入LDT&TSS段
 	//在GDT中注册LDT0
@@ -85,11 +115,9 @@ int addDesToGDT(Descriptor item){
 }
 //创建LDT,写入LDT 创建TSS,写入TSS,在GDT中注册LDT,在GDT中注册TSS
 void creatTask(BYTE task_num,PLVOID func){
-	int ldt0_sel=creatLDT(task_num);
+	int ldt0_sel=creatLDT(task_num,0x10000,0x21000);
 	DWORD esp0=0xef00-0x1000*task_num;
 	int tss0_sel=creatTSS(task_num,(DWORD)func,esp0,0xff0,ldt0_sel);
-	//asm("lldt %%ax"::"eax"(index));
-	
-
+	//asm("lldt %%ax"::"eax"(index));	
 }
 #endif
