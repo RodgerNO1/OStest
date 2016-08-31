@@ -2,81 +2,24 @@
 ; setup.asm
 ; 编译方法：nasm setup.asm -o setup.bin
 ; ==========================================
-%include	"pm.inc"	; 常量, 宏, 以及一些说明	
-;----------------------------------------
 
-[SECTION header]
-        jmp LABEL_BEGIN     ; 
+[SECTION .code32]
+[BITS	32]
+        jmp LABEL_CODE     ; 
 
 ; GDT 选择子
-SelectorFlatC		equ	 	08h
-SelectorFlatRW		equ		10h
-SelectorCode		equ		18h
-SelectorData		equ		20h	
-SelectorVideo		equ		28h
-SelectorGdt			equ		30h
-SelectorTssLdt		equ		38h
-SelectorIdt			equ		40h
+SelectorCode		equ		08h
+SelectorData		equ		10h	
+SelectorVideo		equ		18h
+SelectorGdt			equ		20h
+SelectorTssLdt		equ		28h
+SelectorIdt			equ		30h
 
 SelectorLdt0		equ		40h
 SelectorTss0		equ		40h
 SelectorLdt1		equ		40h
 SelectorTss1		equ		40h
-; GDT 结束
 
-
-
-
-[SECTION .s16]
-[BITS	16]
-LABEL_BEGIN:
-	mov	ax, cs
-	mov	ds, ax
-	mov	es, ax
-	mov	ss, ax
-	mov	sp, 0100h
-	
-	;移动代码段
-	xor	esi, esi
-	xor	edi, edi
-	mov esi,LABEL_CODE
-	mov eax,0x1000
-	mov ds,ax
-	mov eax,0
-	mov es,ax
-	mov edi,0
-	cld
-	mov ecx,Code32_len;9k
-	rep movsb
-	; 为加载 GDTR 作准备
-	xor	eax, eax
-	mov	ax, ds
-	shl	eax, 4
-	add	eax, LABEL_GDT		; eax <- gdt 基地址
-	mov	dword [GdtPtr + 2], eax	; [GdtPtr + 2] <- gdt 基地址
-
-	; 加载 GDTR
-	lgdt	[GdtPtr]
-	; 关中断
-	cli
-	; 打开地址线A20
-	in	al, 92h
-	or	al, 00000010b
-	out	92h, al
-
-	; 准备切换到保护模式
-	mov	eax, cr0
-	or	eax, 1h
-	mov	cr0, eax
-
-	; 真正进入保护模式
-	jmp	dword SelectorCode:0	; 执行这一句会把 SelectorCode 装入 cs,; 并跳转到 SelectorKernel:0  处
-	nop
-	nop
-	nop
-	; END of [SECTION .s16]
-[SECTION .code32]
-[BITS	32]
 LABEL_CODE:
 	call show_pm	;显示pm标志
 	
@@ -87,6 +30,7 @@ LABEL_CODE:
 	mov	gs,ax
 	mov	ss,ax
 	mov esp,0fffeh
+	call setGdt
 	call setIdt
     mov	ax,SelectorData
 	mov	ds,ax
@@ -106,9 +50,20 @@ L6:
 	jmp L6	; main should never return here
 	
 ;------------------------------------------------------------------------------
+setGdt:
+		; 为加载 GDTR 作准备
+		xor	eax, eax
+		mov	eax, LABEL_GDT		; eax <- gdt 基地址
+		mov	dword [GdtPtr + 2], eax	; [GdtPtr + 2] <- gdt 基地址
+
+		; 加载 GDTR
+		lgdt	[GdtPtr]
+		ret
+		
 setIdt:
         lidt [_idtr]                        ;加载中断描述符表寄存器IDTR
 		ret
+
 setClk:
 	mov	al,36h
 	out	43h,al
@@ -335,20 +290,51 @@ local_set_cursor:;参数BX
          out dx,al
 		 ret
 
-Code32_len 	equ $-LABEL_CODE		 
-;======================data========================================
+		 
+;======================data======================================== 
+
 LABEL_DATA:
 ; GDT
-;                              段基址,       段界限     , 属性
-LABEL_GDT:	   	Descriptor      0,		0, 			0           	; 空描述符
-DESC_FLAT_C:	Descriptor      0,    	0ffffh, 	DA_CR | DA_32 | DA_LIMIT_4K	; 0 ~ 4G
-DESC_FLAT_RW:	Descriptor      0,    	0ffffh, 	DA_DRW | DA_LIMIT_4K		; 0 ~ 4G
-DESC_CODE: 		Descriptor 		0, 		0a0h, 		DA_CR | DA_32 | DA_LIMIT_4K; 非一致代码段
-DESC_DATA:   	Descriptor 		0,  	0a0h, 		DA_DRW | DA_LIMIT_4K	    
-DESC_VIDEO:  	Descriptor 0B8000h,  	0ffffh, 	DA_DRW	     	; 显存首地址
-DESC_GDT:		Descriptor 080000h,		0fffh, 		DA_DRW | DA_32		
-DESC_TSSLDT:	Descriptor 081000h,		0efffh, 	DA_DRW | DA_32
-DESC_IDT:		Descriptor 090000h,		0ffffh, 	DA_DRW | DA_32
+LABEL_GDT:
+	dw 	0000h,0000h	;limit,baseL
+	db	00h			;baseM
+	dw	0000h		;gran,type
+	db	00h			;baseH
+DESC_CODE:
+	dw 	0FFFFh,0000h
+	db	00h
+	dw	0C09Ah
+	db	00h
+DESC_DATA:
+	dw 	0FFFFh,0000h
+	db	00h
+	dw	8092h
+	db	00h
+DESC_VIDEO:
+	dw 	0FFFFh,8000h
+	db	0Bh
+	dw	0092h
+	db	00h
+DESC_LDT0:
+	dw 	001fh,0eeeh
+	db	00h
+	dw	0082h
+	db	00h
+DESC_TSS0:
+	dw 	0067h,_tss0_pos
+	db	00h
+	dw	0089h
+	db	00h
+DESC_LDT1:
+	dw 	001fh,_ldt1_pos
+	db	00h
+	dw	0082h
+	db	00h
+DESC_TSS1:
+	dw 	0067h,_tss1_pos
+	db	00h
+	dw	0089h
+	db	00h
 ; GDT 结束
 
 GdtLen		equ	$ - LABEL_GDT	; GDT长度
@@ -357,8 +343,8 @@ GdtPtr		dw	GdtLen - 1		; GDT界限
 			
 current dd 0x0
 _idtr:  dw	256*8-1		;IDT的界限
-        dd	_idtr	;中断描述符表的线性地址
-		
+        dd	idt	;中断描述符表的线性地址
+_tss0_pos equ $		
 _tss0:	dd	0000h                  ;back link
 		dd	0ff00h, 0030h 			;esp0,  ss0
 		dd	0000h, 0000h           ;esp1,  ss1
@@ -375,11 +361,12 @@ _tss0:	dd	0000h                  ;back link
 		dd	SelectorLdt0		       ;ldt
 		dd	8000000h		       ;trace bitmap
 ;LDT0 for task 0,Every task must have private ldt.
+_ldt0_pos equ $
 _ldt0:	dd	00000000h, 00000000h   ;dummy
 		dd	00000fffh, 00c0fa00h   ;task 0 code segment
 		dd	00000fffh, 00c0f200h   ;task 0 data segment
 		dd	00000000h, 00000000h
-		
+_tss1_pos equ $		
 _tss1:	dd	0000h                  ;back link
 		dd	0ff00h, 0030h 			;esp0,  ss0
 		dd	0000h, 0000h           ;esp1,  ss1
@@ -396,7 +383,12 @@ _tss1:	dd	0000h                  ;back link
 		dd	SelectorLdt1		       ;ldt
 		dd	8000000h		       ;trace bitmap
 ;LDT0 for task 0,Every task must have private ldt.
+_ldt1_pos equ $
 _ldt1:	dd	00000000h, 00000000h   ;dummy
 		dd	00000fffh, 00c0fa00h   ;task 1 code segment
 		dd	00000fffh, 00c0f200h   ;task 1 data segment
 		dd	00000000h, 00000000h
+		
+idt: times 256 dd 0	
+
+Code32_len 	equ $-LABEL_CODE

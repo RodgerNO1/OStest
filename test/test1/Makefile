@@ -1,7 +1,7 @@
 #
 #
 #
-SETUP_SIZE = 921
+SETUP_SIZE = 957
 
 #dir
 BOCHS_DIR = ../../vm_bochs/
@@ -9,7 +9,7 @@ BOCHS_DIR = ../../vm_bochs/
 
 #可选项
 do:
-	nasm -o boot.bin boot.asm	
+	nasm -o boot.bin boot.asm -l boot.lst	
 	nasm -o setup.bin setup.asm	-l setup.lst
 	
 clean:
