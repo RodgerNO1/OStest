@@ -1,0 +1,145 @@
+     1                                  ; ==========================================
+     2                                  ; boot.asm
+     3                                  ; 编译方法：nasm boot.asm -o boot.bin
+     4                                  ; ==========================================
+     5                                  ; GDT 选择子
+     6                                  SelectorCode		equ		08h
+     7                                  SelectorData		equ		10h	
+     8                                  SelectorVideo		equ		18h
+     9                                  
+    10                                  [ORG 0h]
+    11 00000000 EA[0500]C007                    jmp 7c0h:start     ; 跳转到段07C0
+    12                                  
+    13                                  start:
+    14                                          ; 设置段寄存器
+    15 00000005 8CC8                            mov ax, cs
+    16 00000007 8ED8                            mov ds, ax
+    17 00000009 8EC0                            mov es, ax
+    18                                  
+    19                                  	;读取setup.bin文件到0800:0000
+    20                                  reset:                      ; 重置软盘驱动器
+    21 0000000B B80000                          mov ax, 0           ;
+    22 0000000E B200                            mov dl, 0           ; Drive=0 (=A)
+    23 00000010 CD13                            int 13h             ;
+    24 00000012 72F7                            jc reset            ; ERROR => reset again
+    25                                  
+    26                                  
+    27                                  load_setup:
+    28 00000014 B80010                          mov ax, 1000h       ; ES:BX = 0800h:0000
+    29 00000017 8EC0                            mov es, ax          ;
+    30 00000019 BB0000                          mov bx, 0           ;
+    31                                  
+    32 0000001C B402                            mov ah, 2           ; 读取磁盘数据到地址ES:BX
+    33 0000001E B00A                            mov al, 10           ; 读取1个扇区
+    34 00000020 B500                            mov ch, 0           ; Cylinder=0
+    35 00000022 B102                            mov cl, 2           ; Sector=2
+    36 00000024 B600                            mov dh, 0           ; Head=0
+    37 00000026 B200                            mov dl, 0           ; Drive=0
+    38 00000028 CD13                            int 13h             ; Read!
+    39                                  
+    40 0000002A 72E8                            jc load_setup       ; ERROR => Try again
+    41                                  
+    42                                   
+    43                                  set_reg:
+    44                                          ; 设置段寄存器
+    45 0000002C 8CC8                            mov ax, cs
+    46 0000002E 8ED8                            mov ds, ax
+    47 00000030 8EC0                            mov es, ax
+    48                                  
+    49 00000032 BE[D700]                        mov si, msg     ; 打印字符串
+    50                                  print:
+    51 00000035 AC                              lodsb           ; AL=字符串存放在DS:SI
+    52                                  
+    53 00000036 3C00                            cmp al, 0       ; If AL=0 then hang
+    54 00000038 7409                            je LABEL_BEGIN
+    55                                  
+    56 0000003A B40E                            mov ah, 0Eh     ; Print AL
+    57 0000003C BB0700                          mov bx, 7
+    58 0000003F CD10                            int 10h
+    59                                  
+    60 00000041 EBF2                            jmp print       ; 打印下一个字符
+    61                                  
+    62                                  LABEL_BEGIN:
+    63 00000043 8CC8                    	mov	ax, cs
+    64 00000045 8ED8                    	mov	ds, ax
+    65 00000047 8EC0                    	mov	es, ax
+    66 00000049 8ED0                    	mov	ss, ax
+    67 0000004B BC0001                  	mov	sp, 0100h
+    68                                  	
+    69                                  	;移动代码段
+    70 0000004E 1E                      	push ds
+    71 0000004F 06                      	push es
+    72 00000050 6631F6                  	xor	esi, esi
+    73 00000053 6631FF                  	xor	edi, edi
+    74 00000056 66BE00000000            	mov esi,0
+    75 0000005C 66B800100000            	mov eax,0x1000
+    76 00000062 8ED8                    	mov ds,ax
+    77 00000064 66B800000000            	mov eax,0
+    78 0000006A 8EC0                    	mov es,ax
+    79 0000006C 66BF00000000            	mov edi,0
+    80 00000072 FC                      	cld
+    81 00000073 66B900200000            	mov ecx,2000h;9k
+    82 00000079 F3A4                    	rep movsb
+    83 0000007B 07                      	pop es
+    84 0000007C 1F                      	pop ds
+    85                                  	; 为加载 GDTR 作准备
+    86 0000007D 6631C0                  	xor	eax, eax
+    87 00000080 8CD8                    	mov	ax, ds
+    88 00000082 66C1E004                	shl	eax, 4
+    89 00000086 6605[B1000000]          	add	eax, LABEL_GDT		; eax <- gdt 基地址
+    90 0000008C 66A3[D300]              	mov	dword [GdtPtr + 2], eax	; [GdtPtr + 2] <- gdt 基地址
+    91                                  
+    92                                  	; 加载 GDTR
+    93 00000090 0F0116[D100]            	lgdt	[GdtPtr]
+    94                                  	; 关中断
+    95 00000095 FA                      	cli
+    96                                  	; 打开地址线A20
+    97 00000096 E492                    	in	al, 92h
+    98 00000098 0C02                    	or	al, 00000010b
+    99 0000009A E692                    	out	92h, al
+   100                                  
+   101                                  	; 准备切换到保护模式
+   102 0000009C 0F20C0                  	mov	eax, cr0
+   103 0000009F 6683C801                	or	eax, 1h
+   104 000000A3 0F22C0                  	mov	cr0, eax
+   105                                  
+   106                                  	; 真正进入保护模式
+   107 000000A6 66EA000000000800        	jmp	dword SelectorCode:0	; 执行这一句会把 SelectorCode 装入 cs,; 并跳转到 SelectorKernel:0  处
+   108 000000AE 90                      	nop
+   109 000000AF 90                      	nop
+   110 000000B0 90                      	nop
+   111                                  ;======================data======================================== 
+   112                                  ; GDT
+   113                                  LABEL_GDT:
+   114 000000B1 00000000                	dw 	0000h,0000h	;limit,baseL
+   115 000000B5 00                      	db	00h			;baseM
+   116 000000B6 0000                    	dw	0000h		;gran,type
+   117 000000B8 00                      	db	00h			;baseH
+   118                                  DESC_CODE:
+   119 000000B9 FFFF0000                	dw 	0FFFFh,0000h
+   120 000000BD 00                      	db	00h
+   121 000000BE 9AC0                    	dw	0C09Ah
+   122 000000C0 00                      	db	00h
+   123                                  DESC_DATA:
+   124 000000C1 FFFF0000                	dw 	0FFFFh,0000h
+   125 000000C5 00                      	db	00h
+   126 000000C6 9280                    	dw	8092h
+   127 000000C8 00                      	db	00h
+   128                                  DESC_VIDEO:
+   129 000000C9 FFFF0080                	dw 	0FFFFh,8000h
+   130 000000CD 0B                      	db	0Bh
+   131 000000CE 9200                    	dw	0092h
+   132 000000D0 00                      	db	00h
+   133                                  
+   134                                  GdtLen		equ	$ - LABEL_GDT	; GDT长度
+   135 000000D1 1F00                    GdtPtr		dw	GdtLen - 1		; GDT界限
+   136 000000D3 00000000                			dd	0				; GDT基地址
+   137                                  			
+   138 000000D7 50726F6772616D204C-     msg db  'Program Loaded Succeed! Hello, myos!',13,10,'$'
+   139 000000E0 6F6164656420537563-
+   140 000000E9 63656564212048656C-
+   141 000000F2 6C6F2C206D796F7321-
+   142 000000FB 0D0A24             
+   143                                  
+   144 000000FE 00<rept>                times 510-($-$$) db 0
+   145 000001FE 55AA                    dw 0AA55h

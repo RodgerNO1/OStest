@@ -38,8 +38,11 @@ LABEL_CODE:
 	mov	esp,0fffeh
     call Init8259A
 	call setClk		;initialize 8253/54
-	sti
-	int 20h
+;-----main---------------------------------------------
+;	sti
+;	int 20h
+	jmp SelectorTss0:0
+
 ;-------------------------------------------------------
 L6:
 	jmp L6	; main should never return here
@@ -64,7 +67,7 @@ setIdt:
 		mov word[gate+2],ax
 		mov al,0
 		mov byte[gate+4],al
-		mov al,8eh				;中断门
+		mov al,0eeh				;中断门,0eeh:PL3,08eh:PL0
 		mov byte[gate+5],al
 		mov ax,0
 		mov word[gate+6],ax
@@ -159,7 +162,7 @@ _ClockHandler:
 	call put_char
 	pop	eax
 	iretd
-	
+;	
 	push ds
 	push eax
 	mov	al, 20h
@@ -203,13 +206,18 @@ _SpuriousHandler:
 	iretd
 ;-------------------------------------------------------------------
 task0:
-	push 0x65
-	call put_char
+	int 20h
+	;mov eax,'A'
+	;push eax
+	;call put_char
+	;pop eax
 	jmp task0
 	
 task1:
-	push 0x65
+	mov eax,'B'
+	push eax
 	call put_char
+	pop eax
 	jmp task1
 ;-------------------------------------------------------------------
 _sys_get_cursor:;以下取当前光标位置ax
@@ -238,55 +246,56 @@ put_char:                                ;显示一个字符 vl=字符ascii
 		 mov ecx,[ebp+20]				;CX 存放字符
          ;以下取当前光标位置
 		 call _sys_get_cursor
-		 mov bx,ax						;BX 存放光标位置
+		 mov ebx,eax						;BX 存放光标位置
 		 
-		 mov ax, SelectorVideo
-		 mov gs, ax			; 视频段选择子
+		 mov eax, SelectorVideo
+		 mov gs, eax			; 视频段选择子
 		 
          cmp cl,0x0d                     ;回车符？
-         jnz .put_0a                     ;不是。看看是不是换行等字符 
-         mov ax,bx                       ;此句略显多余，但去掉后还得改书，麻烦 
+         je .put_0a0d                     ;不是。看看是不是换行等字符 
+		 cmp cl,0x0a
+		 je .put_0a0d
+         jmp .put_other
+
+ .put_0a0d:
+         mov eax,ebx                      
          mov bl,80                       
          div bl
          mul bl
-         mov bx,ax
-         jmp .set_cursor
-
- .put_0a:
-         cmp cl,0x0a                     ;换行符？
-         jnz .put_other                  ;不是，那就正常显示字符 
-         add bx,80
+         mov ebx,eax	;回到行首
+		 add ebx,80	;下一行
          jmp .roll_screen
 
  .put_other:                             ;正常显示字符
-         shl bx,1
-         mov [gs:bx],cl
+         shl ebx,1
+         mov [gs:ebx],cl
 
          ;以下将光标位置推进一个字符
-         shr bx,1
-         add bx,1
+         shr ebx,1
+         add ebx,1
 
  .roll_screen:
-         cmp bx,2000                     ;光标超出屏幕？滚屏
+         cmp ebx,2000                     ;光标超出屏幕？滚屏
          jl .set_cursor
 
-         mov ax,SelectorVideo
+         mov eax,SelectorVideo
          mov ds,ax
          mov es,ax
          cld
-         mov si,0xa0
-         mov di,0x00
-         mov cx,1920
+         mov esi,0xa0
+         mov edi,0x00
+         mov ecx,1920
          rep movsw
-         mov bx,3840                     ;清除屏幕最底一行
-         mov cx,80
+         mov ebx,3840                     ;清除屏幕最底一行
+         mov ecx,80
  .cls:
-         mov word[gs:bx],0x0720
-         add bx,2
+         mov word[gs:ebx],0x0720
+         add ebx,2
          loop .cls
 
-         mov bx,1920
- 
+         mov ebx,1920
+
+	 
 .set_cursor:
 		
 		call local_set_cursor
@@ -311,7 +320,7 @@ local_set_cursor:;参数BX
          mov dx,0x3d5
          mov al,bl
          out dx,al
-		 ret
+		 ret	
 
 		 
 ;======================data======================================== 
@@ -377,7 +386,7 @@ GdtPtr		dw	GdtLen - 1		; GDT界限
 ; GDT 结束
 		
 _tss0:	dd	0000h                  ;back link
-		dd	0ff00h, 0030h 			;esp0,  ss0
+		dd	0eff0h, 0010h 			;esp0,  ss0
 		dd	0000h, 0000h           ;esp1,  ss1
 		dd	0000h, 0000h           ;esp2,  ss2
 		dd	0000h                  ;cr3
@@ -385,19 +394,22 @@ _tss0:	dd	0000h                  ;back link
 		dd	0200h                  ;eflags
 		dd	0000h, 0000h, 0000h, 0000h
                                    ;eax,  ecx,  edx,  ebx
-		dd	0ff00h            ;esp
+		dd	0cff0h            ;esp
 		dd	0000h, 0000h, 0000h    ;ebp, esi, edi
 		dd	0017h, 000fh, 0017h, 0017h, 0017h, 0017h
 						           ;es,  cs,  ss,  ds,  fs,  gs
 		dd	SelectorLdt0		       ;ldt
 		dd	8000000h		       ;trace bitmap
-;LDT0 for task 0,Every task must have private ldt.
 _ldt0:	dd	00000000h, 00000000h   ;dummy
-		dd	00000fffh, 00c0fa00h   ;task 0 code segment
+		dw 	0FFFFh,task0
+		db	00h
+		dw	0C0FAh
+		db	00h
 		dd	00000fffh, 00c0f200h   ;task 0 data segment
 		dd	00000000h, 00000000h	
+		
 _tss1:	dd	0000h                  ;back link
-		dd	0ff00h, 0030h 			;esp0,  ss0
+		dd	0dff0h, 0030h 			;esp0,  ss0
 		dd	0000h, 0000h           ;esp1,  ss1
 		dd	0000h, 0000h           ;esp2,  ss2
 		dd	0000h                  ;cr3
@@ -405,7 +417,7 @@ _tss1:	dd	0000h                  ;back link
 		dd	0200h                  ;eflags
 		dd	0000h, 0000h, 0000h, 0000h
                                    ;eax,  ecx,  edx,  ebx
-		dd	0ff00h            ;esp
+		dd	0aff0h            ;esp
 		dd	0000h, 0000h, 0000h    ;ebp, esi, edi
 		dd	0017h, 000fh, 0017h, 0017h, 0017h, 0017h
 						           ;es,  cs,  ss,  ds,  fs,  gs
@@ -413,7 +425,10 @@ _tss1:	dd	0000h                  ;back link
 		dd	8000000h		       ;trace bitmap
 ;LDT0 for task 0,Every task must have private ldt.
 _ldt1:	dd	00000000h, 00000000h   ;dummy
-		dd	00000fffh, 00c0fa00h   ;task 1 code segment
+		dw 	0FFFFh,task1
+		db	00h
+		dw	0C0FAh
+		db	00h
 		dd	00000fffh, 00c0f200h   ;task 1 data segment
 		dd	00000000h, 00000000h
 		

@@ -1,0 +1,445 @@
+     1                                  ; ==========================================
+     2                                  ; setup.asm
+     3                                  ; 编译方法：nasm setup.asm -o setup.bin
+     4                                  ; ==========================================
+     5                                  
+     6                                  [SECTION .code32]
+     7                                  [BITS	32]
+     8                                  CODE32:
+     9 00000000 EB00                            jmp LABEL_CODE     ; 
+    10                                  
+    11                                  ; GDT 选择子
+    12                                  SelectorCode		equ		08h
+    13                                  SelectorData		equ		10h	
+    14                                  SelectorVideo		equ		18h
+    15                                  SelectorLdt0		equ		20h
+    16                                  SelectorTss0		equ		28h
+    17                                  SelectorLdt1		equ		30h
+    18                                  SelectorTss1		equ		38h
+    19                                  
+    20                                  LABEL_CODE:
+    21 00000002 E8B3000000              	call show_pm	;显示pm标志
+    22                                  	
+    23 00000007 66B81000                	mov	ax,SelectorData
+    24 0000000B 8ED8                    	mov	ds,ax
+    25 0000000D 8EC0                    	mov	es,ax
+    26 0000000F 8EE0                    	mov	fs,ax
+    27 00000011 8EE8                    	mov	gs,ax
+    28 00000013 8ED0                    	mov	ss,ax
+    29 00000015 BCFEFF0000              	mov esp,0fffeh
+    30 0000001A E82B000000              	call setGdt
+    31 0000001F E83A000000              	call setIdt
+    32 00000024 66B81000                    mov	ax,SelectorData
+    33 00000028 8ED8                    	mov	ds,ax
+    34 0000002A 8EE0                    	mov	fs,ax
+    35 0000002C 8EE8                    	mov	gs,ax
+    36 0000002E 8EC0                    	mov	es,ax
+    37 00000030 8ED0                    	mov	ss,ax
+    38 00000032 BCFEFF0000              	mov	esp,0fffeh
+    39 00000037 E892000000                  call Init8259A
+    40 0000003C E867000000              	call setClk		;initialize 8253/54
+    41                                  ;-----main---------------------------------------------
+    42                                  ;	sti
+    43                                  ;	int 20h
+    44 00000041 EA000000002800          	jmp SelectorTss0:0
+    45                                  
+    46                                  ;-------------------------------------------------------
+    47                                  L6:
+    48 00000048 EBFE                    	jmp L6	; main should never return here
+    49                                  	
+    50                                  ;------------------------------------------------------------------------------
+    51                                  setGdt:
+    52                                  		; 为加载 GDTR 作准备
+    53 0000004A 31C0                    		xor	eax, eax
+    54 0000004C B8[7B020000]            		mov	eax, LABEL_GDT		; eax <- gdt 基地址
+    55 00000051 A3[BD020000]            		mov	dword [GdtPtr + 2], eax	; [GdtPtr + 2] <- gdt 基地址
+    56                                  
+    57                                  		; 加载 GDTR
+    58 00000056 0F0115[BB020000]        		lgdt	[GdtPtr]
+    59 0000005D C3                      		ret
+    60                                  		
+    61                                  setIdt:
+    62 0000005E 50                      		push eax
+    63                                  		;制作时钟中断门
+    64 0000005F 66B8[2A01]              		mov ax,_ClockHandler
+    65 00000063 66A3[73020000]          		mov word[gate],ax
+    66 00000069 66B80800                		mov ax,SelectorCode
+    67 0000006D 66A3[75020000]          		mov word[gate+2],ax
+    68 00000073 B000                    		mov al,0
+    69 00000075 A2[77020000]            		mov byte[gate+4],al
+    70 0000007A B0EE                    		mov al,0eeh				;中断门,0eeh:PL3,08eh:PL0
+    71 0000007C A2[78020000]            		mov byte[gate+5],al
+    72 00000081 66B80000                		mov ax,0
+    73 00000085 66A3[79020000]          		mov word[gate+6],ax
+    74                                  		;复制到中断表中
+    75 0000008B A1[73020000]            		mov eax,dword[gate]
+    76 00000090 A3[D1040000]            		mov dword[idt+20h*8],eax
+    77 00000095 A1[77020000]            		mov eax,dword[gate+4]
+    78 0000009A A3[D5040000]            		mov dword[idt+20h*8+4],eax
+    79 0000009F 0F011D[6D020000]                lidt [_idtr]                       ;加载中断描述符表寄存器IDTR
+    80 000000A6 58                      		pop eax
+    81 000000A7 C3                      		ret
+    82                                  
+    83                                  setClk:
+    84 000000A8 B036                    	mov	al,36h
+    85 000000AA E643                    	out	43h,al
+    86 000000AC 9B                      	wait
+    87                                  	
+    88 000000AD 66B89A2E                	mov	ax,11930;设置时钟中断频率(1193180/100)即100hz
+    89 000000B1 E640                    	out	40h,al
+    90 000000B3 9B                      	wait
+    91 000000B4 88E0                    	mov	al,ah
+    92 000000B6 E640                    	out	40h,al
+    93 000000B8 9B                      	wait
+    94 000000B9 C3                      	ret
+    95                                  show_pm:
+    96 000000BA 66B81800                	mov	ax, SelectorVideo
+    97 000000BE 8EE8                    	mov	gs, ax			; 视频段选择子(目的)
+    98                                  	
+    99 000000C0 BF7E070000              	mov	edi, (80 * 11 + 79) * 2	; 屏幕第 11 行, 第 79 列。
+   100 000000C5 B40C                    	mov	ah, 0Ch			; 0000: 黑底    1100: 红字
+   101 000000C7 B050                    	mov	al, 'P'
+   102 000000C9 65668907                	mov	[gs:edi], ax
+   103 000000CD C3                      	ret
+   104                                  ;end show_pm
+   105                                  
+   106                                  ; Init8259A 
+   107                                  Init8259A:
+   108 000000CE B011                    	mov	al, 011h
+   109 000000D0 E620                    	out	020h, al	; 主8259, ICW1.
+   110 000000D2 E84E000000              	call	io_delay
+   111                                  
+   112 000000D7 E6A0                    	out	0A0h, al	; 从8259, ICW1.
+   113 000000D9 E847000000              	call	io_delay   
+   114                                  
+   115 000000DE B020                    	mov	al, 020h	; IRQ0 对应中断向量 0x20时钟中断
+   116 000000E0 E621                    	out	021h, al	; 主8259, ICW2.
+   117 000000E2 E83E000000              	call	io_delay
+   118                                  
+   119 000000E7 B028                    	mov	al, 028h	; IRQ8 对应中断向量 0x28
+   120 000000E9 E6A1                    	out	0A1h, al	; 从8259, ICW2.
+   121 000000EB E835000000              	call	io_delay
+   122                                  
+   123 000000F0 B004                    	mov	al, 004h	; IR2 对应从8259
+   124 000000F2 E621                    	out	021h, al	; 主8259, ICW3.
+   125 000000F4 E82C000000              	call	io_delay
+   126                                  
+   127 000000F9 B002                    	mov	al, 002h	; 对应主8259的 IR2
+   128 000000FB E6A1                    	out	0A1h, al	; 从8259, ICW3.
+   129 000000FD E823000000              	call	io_delay
+   130                                  
+   131 00000102 B001                    	mov	al, 001h
+   132 00000104 E621                    	out	021h, al	; 主8259, ICW4.
+   133 00000106 E81A000000              	call	io_delay
+   134                                  
+   135 0000010B E6A1                    	out	0A1h, al	; 从8259, ICW4.
+   136 0000010D E813000000              	call	io_delay
+   137                                  
+   138                                  	;mov	al, 11111111b	; 屏蔽主8259所有中断
+   139 00000112 B0FE                    	mov	al, 11111110b	; 仅仅开启定时器中断
+   140 00000114 E621                    	out	021h, al	; 主8259, OCW1.
+   141 00000116 E80A000000              	call	io_delay
+   142                                  
+   143 0000011B B0FF                    	mov	al, 11111111b	; 屏蔽从8259所有中断
+   144 0000011D E6A1                    	out	0A1h, al	; 从8259, OCW1.
+   145 0000011F E801000000              	call	io_delay
+   146                                  
+   147 00000124 C3                      	ret
+   148                                  
+   149                                  io_delay:
+   150 00000125 90                      	nop
+   151 00000126 90                      	nop
+   152 00000127 90                      	nop
+   153 00000128 90                      	nop
+   154 00000129 C3                      	ret
+   155                                  	
+   156                                  ; int handler ---------------------------------------------------------------
+   157                                  _ClockHandler:
+   158 0000012A B020                    	mov	al, 20h
+   159 0000012C E620                    	out	20h, al				; 发送 EOI
+   160 0000012E B841000000              	mov eax,'A'
+   161 00000133 50                      	push eax
+   162 00000134 E88D000000              	call put_char
+   163 00000139 58                      	pop	eax
+   164 0000013A CF                      	iretd
+   165                                  ;	
+   166 0000013B 1E                      	push ds
+   167 0000013C 50                      	push eax
+   168 0000013D B020                    	mov	al, 20h
+   169 0000013F E620                    	out	20h, al				; 发送 EOI
+   170 00000141 B810000000              	mov eax,SelectorData
+   171 00000146 B801000000              	mov eax,1
+   172 0000014B 3D[69020000]            	cmp eax,current
+   173 00000150 740C                    	je .t1
+   174 00000152 B801000000              	mov eax,1
+   175 00000157 A3[69020000]            	mov dword[current],eax
+   176                                  ;	jmp SelectorTss1:0
+   177 0000015C EB0A                    	jmp .t2	
+   178                                  .t1:
+   179 0000015E B800000000              	mov eax,0
+   180 00000163 A3[69020000]            	mov dword[current],eax
+   181                                  ;	jmp SelectorTss0:0
+   182                                  .t2:
+   183 00000168 58                      	pop eax
+   184 00000169 1F                      	pop ds
+   185 0000016A CF                      	iretd
+   186                                  
+   187                                  _UserIntHandler:
+   188 0000016B 0FA8                    	push gs
+   189 0000016D 66B81800                	mov	ax, SelectorVideo
+   190 00000171 8EE8                    	mov	gs, ax
+   191 00000173 B40C                    	mov	ah, 0Ch				; 0000: 黑底    1100: 红字
+   192 00000175 B049                    	mov	al, 'I'
+   193 00000177 6566A38C000000          	mov	[gs:((80 * 0 + 70) * 2)], ax	; 屏幕第 0 行, 第 70 列。
+   194 0000017E 0FA9                    	pop gs
+   195 00000180 CF                      	iretd
+   196                                  
+   197                                  _SpuriousHandler:
+   198 00000181 0FA8                    	push gs
+   199 00000183 66B81800                	mov	ax, SelectorVideo
+   200 00000187 8EE8                    	mov	gs, ax
+   201 00000189 B40C                    	mov	ah, 0Ch				; 0000: 黑底    1100: 红字
+   202 0000018B B021                    	mov	al, '!'
+   203 0000018D 6566A396000000          	mov	[gs:((80 * 0 + 75) * 2)], ax	; 屏幕第 0 行, 第 75 列。
+   204 00000194 EBFE                    	jmp $					;未知系统中断，系统死循环
+   205 00000196 0FA9                    	pop gs
+   206 00000198 CF                      	iretd
+   207                                  ;-------------------------------------------------------------------
+   208                                  task0:
+   209 00000199 CD20                    	int 20h
+   210                                  	;mov eax,'A'
+   211                                  	;push eax
+   212                                  	;call put_char
+   213                                  	;pop eax
+   214 0000019B EBFC                    	jmp task0
+   215                                  	
+   216                                  task1:
+   217 0000019D B842000000              	mov eax,'B'
+   218 000001A2 50                      	push eax
+   219 000001A3 E81E000000              	call put_char
+   220 000001A8 58                      	pop eax
+   221 000001A9 EBF2                    	jmp task1
+   222                                  ;-------------------------------------------------------------------
+   223                                  _sys_get_cursor:;以下取当前光标位置ax
+   224 000001AB 66BAD403                         mov dx,0x3d4
+   225 000001AF B00E                             mov al,0x0e
+   226 000001B1 EE                               out dx,al
+   227 000001B2 66BAD503                         mov dx,0x3d5
+   228 000001B6 EC                               in al,dx                        ;高8位 
+   229 000001B7 88C4                             mov ah,al
+   230                                  
+   231 000001B9 66BAD403                         mov dx,0x3d4
+   232 000001BD B00F                             mov al,0x0f
+   233 000001BF EE                               out dx,al
+   234 000001C0 66BAD503                         mov dx,0x3d5
+   235 000001C4 EC                               in al,dx                        ;低8位 AX=代表光标位置的16位数
+   236 000001C5 C3                      		 ret
+   237                                  ;end _sys_get_cursor		 
+   238                                  
+   239                                  put_char:                                ;显示一个字符 vl=字符ascii
+   240 000001C6 1E                      		 push ds
+   241 000001C7 06                      		 push es
+   242 000001C8 0FA8                    		 push gs
+   243 000001CA 55                      		 push ebp
+   244 000001CB 89E5                    		 mov ebp,esp
+   245                                  		 
+   246 000001CD 8B4D14                  		 mov ecx,[ebp+20]				;CX 存放字符
+   247                                           ;以下取当前光标位置
+   248 000001D0 E8D6FFFFFF              		 call _sys_get_cursor
+   249 000001D5 89C3                    		 mov ebx,eax						;BX 存放光标位置
+   250                                  		 
+   251 000001D7 B818000000              		 mov eax, SelectorVideo
+   252 000001DC 8EE8                    		 mov gs, eax			; 视频段选择子
+   253                                  		 
+   254 000001DE 80F90D                           cmp cl,0x0d                     ;回车符？
+   255 000001E1 7407                             je .put_0a0d                     ;不是。看看是不是换行等字符 
+   256 000001E3 80F90A                  		 cmp cl,0x0a
+   257 000001E6 7402                    		 je .put_0a0d
+   258 000001E8 EB0F                             jmp .put_other
+   259                                  
+   260                                   .put_0a0d:
+   261 000001EA 89D8                             mov eax,ebx                      
+   262 000001EC B350                             mov bl,80                       
+   263 000001EE F6F3                             div bl
+   264 000001F0 F6E3                             mul bl
+   265 000001F2 89C3                             mov ebx,eax	;回到行首
+   266 000001F4 83C350                  		 add ebx,80	;下一行
+   267 000001F7 EB0A                             jmp .roll_screen
+   268                                  
+   269                                   .put_other:                             ;正常显示字符
+   270 000001F9 D1E3                             shl ebx,1
+   271 000001FB 65880B                           mov [gs:ebx],cl
+   272                                  
+   273                                           ;以下将光标位置推进一个字符
+   274 000001FE D1EB                             shr ebx,1
+   275 00000200 83C301                           add ebx,1
+   276                                  
+   277                                   .roll_screen:
+   278 00000203 81FBD0070000                     cmp ebx,2000                     ;光标超出屏幕？滚屏
+   279 00000209 7C36                             jl .set_cursor
+   280                                  
+   281 0000020B B818000000                       mov eax,SelectorVideo
+   282 00000210 8ED8                             mov ds,ax
+   283 00000212 8EC0                             mov es,ax
+   284 00000214 FC                               cld
+   285 00000215 BEA0000000                       mov esi,0xa0
+   286 0000021A BF00000000                       mov edi,0x00
+   287 0000021F B980070000                       mov ecx,1920
+   288 00000224 F366A5                           rep movsw
+   289 00000227 BB000F0000                       mov ebx,3840                     ;清除屏幕最底一行
+   290 0000022C B950000000                       mov ecx,80
+   291                                   .cls:
+   292 00000231 6566C7032007                     mov word[gs:ebx],0x0720
+   293 00000237 83C302                           add ebx,2
+   294 0000023A E2F5                             loop .cls
+   295                                  
+   296 0000023C BB80070000                       mov ebx,1920
+   297                                  
+   298                                  	 
+   299                                  .set_cursor:
+   300                                  		
+   301 00000241 E806000000              		call local_set_cursor
+   302                                  		
+   303 00000246 5D                      		 pop ebp
+   304 00000247 0FA9                    		 pop gs
+   305 00000249 07                      		 pop es
+   306 0000024A 1F                      		 pop ds
+   307 0000024B C3                      		 ret
+   308                                  ;end  _sys_put_char 
+   309                                  
+   310                                  local_set_cursor:;参数BX
+   311 0000024C 66BAD403                		 mov dx,0x3d4
+   312 00000250 B00E                             mov al,0x0e
+   313 00000252 EE                               out dx,al
+   314 00000253 66BAD503                         mov dx,0x3d5
+   315 00000257 88F8                             mov al,bh
+   316 00000259 EE                               out dx,al
+   317 0000025A 66BAD403                         mov dx,0x3d4
+   318 0000025E B00F                             mov al,0x0f
+   319 00000260 EE                               out dx,al
+   320 00000261 66BAD503                         mov dx,0x3d5
+   321 00000265 88D8                             mov al,bl
+   322 00000267 EE                               out dx,al
+   323 00000268 C3                      		 ret	
+   324                                  
+   325                                  		 
+   326                                  ;======================data======================================== 
+   327                                  
+   328                                  LABEL_DATA:
+   329                                  			
+   330 00000269 00000000                current dd 0x0
+   331 0000026D FF07                    _idtr:  dw	256*8-1		;IDT的界限
+   332 0000026F [D1030000]                      dd	idt	;中断描述符表的线性地址
+   333                                  		
+   334                                  gate:
+   335 00000273 0000                    	dw	0000h;baseL
+   336 00000275 0000                    	dw	0000h;seletor
+   337 00000277 00                      	db	00h;paramCnt
+   338 00000278 00                      	db	00h;type
+   339 00000279 0000                    	dw	0000h;baseH
+   340                                  
+   341                                  
+   342                                  ; GDT
+   343                                  LABEL_GDT:
+   344 0000027B 00000000                	dw 	0000h,0000h	;limit,baseL
+   345 0000027F 00                      	db	00h			;baseM
+   346 00000280 0000                    	dw	0000h		;gran,type
+   347 00000282 00                      	db	00h			;baseH
+   348                                  DESC_CODE:
+   349 00000283 FFFF0000                	dw 	0FFFFh,0000h
+   350 00000287 00                      	db	00h
+   351 00000288 9AC0                    	dw	0C09Ah
+   352 0000028A 00                      	db	00h
+   353                                  DESC_DATA:
+   354 0000028B FFFF0000                	dw 	0FFFFh,0000h
+   355 0000028F 00                      	db	00h
+   356 00000290 9280                    	dw	8092h
+   357 00000292 00                      	db	00h
+   358                                  DESC_VIDEO:
+   359 00000293 FFFF0080                	dw 	0FFFFh,8000h
+   360 00000297 0B                      	db	0Bh
+   361 00000298 9200                    	dw	0092h
+   362 0000029A 00                      	db	00h
+   363                                  DESC_LDT0:
+   364 0000029B 1F00[2903]              	dw 	001fh,_ldt0
+   365 0000029F 00                      	db	00h
+   366 000002A0 8200                    	dw	0082h
+   367 000002A2 00                      	db	00h
+   368                                  DESC_TSS0:
+   369 000002A3 6700[C102]              	dw 	0067h,_tss0
+   370 000002A7 00                      	db	00h
+   371 000002A8 8900                    	dw	0089h
+   372 000002AA 00                      	db	00h
+   373                                  DESC_LDT1:
+   374 000002AB 1F00[B103]              	dw 	001fh,_ldt1
+   375 000002AF 00                      	db	00h
+   376 000002B0 8200                    	dw	0082h
+   377 000002B2 00                      	db	00h
+   378                                  DESC_TSS1:
+   379 000002B3 6700[4903]              	dw 	0067h,_tss1
+   380 000002B7 00                      	db	00h
+   381 000002B8 8900                    	dw	0089h
+   382 000002BA 00                      	db	00h
+   383                                  GdtLen		equ	$ - LABEL_GDT	; GDT长度
+   384 000002BB 3F00                    GdtPtr		dw	GdtLen - 1		; GDT界限
+   385 000002BD 00000000                			dd	0				; GDT基地址
+   386                                  ; GDT 结束
+   387                                  		
+   388 000002C1 00000000                _tss0:	dd	0000h                  ;back link
+   389 000002C5 F0EF000010000000        		dd	0eff0h, 0010h 			;esp0,  ss0
+   390 000002CD 0000000000000000        		dd	0000h, 0000h           ;esp1,  ss1
+   391 000002D5 0000000000000000        		dd	0000h, 0000h           ;esp2,  ss2
+   392 000002DD 00000000                		dd	0000h                  ;cr3
+   393 000002E1 00000000                		dd	0000h                  ;eip
+   394 000002E5 00020000                		dd	0200h                  ;eflags
+   395 000002E9 000000000000000000-     		dd	0000h, 0000h, 0000h, 0000h
+   396 000002F2 00000000000000     
+   397                                                                     ;eax,  ecx,  edx,  ebx
+   398 000002F9 F0CF0000                		dd	0cff0h            ;esp
+   399 000002FD 000000000000000000-     		dd	0000h, 0000h, 0000h    ;ebp, esi, edi
+   400 00000306 000000             
+   401 00000309 170000000F00000017-     		dd	0017h, 000fh, 0017h, 0017h, 0017h, 0017h
+   402 00000312 000000170000001700-
+   403 0000031B 000017000000       
+   404                                  						           ;es,  cs,  ss,  ds,  fs,  gs
+   405 00000321 20000000                		dd	SelectorLdt0		       ;ldt
+   406 00000325 00000008                		dd	8000000h		       ;trace bitmap
+   407 00000329 0000000000000000        _ldt0:	dd	00000000h, 00000000h   ;dummy
+   408 00000331 FFFF[9901]              		dw 	0FFFFh,task0
+   409 00000335 00                      		db	00h
+   410 00000336 FAC0                    		dw	0C0FAh
+   411 00000338 00                      		db	00h
+   412 00000339 FF0F000000F2C000        		dd	00000fffh, 00c0f200h   ;task 0 data segment
+   413 00000341 0000000000000000        		dd	00000000h, 00000000h	
+   414                                  		
+   415 00000349 00000000                _tss1:	dd	0000h                  ;back link
+   416 0000034D F0DF000030000000        		dd	0dff0h, 0030h 			;esp0,  ss0
+   417 00000355 0000000000000000        		dd	0000h, 0000h           ;esp1,  ss1
+   418 0000035D 0000000000000000        		dd	0000h, 0000h           ;esp2,  ss2
+   419 00000365 00000000                		dd	0000h                  ;cr3
+   420 00000369 00000000                		dd	0000h                  ;eip
+   421 0000036D 00020000                		dd	0200h                  ;eflags
+   422 00000371 000000000000000000-     		dd	0000h, 0000h, 0000h, 0000h
+   423 0000037A 00000000000000     
+   424                                                                     ;eax,  ecx,  edx,  ebx
+   425 00000381 F0AF0000                		dd	0aff0h            ;esp
+   426 00000385 000000000000000000-     		dd	0000h, 0000h, 0000h    ;ebp, esi, edi
+   427 0000038E 000000             
+   428 00000391 170000000F00000017-     		dd	0017h, 000fh, 0017h, 0017h, 0017h, 0017h
+   429 0000039A 000000170000001700-
+   430 000003A3 000017000000       
+   431                                  						           ;es,  cs,  ss,  ds,  fs,  gs
+   432 000003A9 30000000                		dd	SelectorLdt1		       ;ldt
+   433 000003AD 00000008                		dd	8000000h		       ;trace bitmap
+   434                                  ;LDT0 for task 0,Every task must have private ldt.
+   435 000003B1 0000000000000000        _ldt1:	dd	00000000h, 00000000h   ;dummy
+   436 000003B9 FFFF[9D01]              		dw 	0FFFFh,task1
+   437 000003BD 00                      		db	00h
+   438 000003BE FAC0                    		dw	0C0FAh
+   439 000003C0 00                      		db	00h
+   440 000003C1 FF0F000000F2C000        		dd	00000fffh, 00c0f200h   ;task 1 data segment
+   441 000003C9 0000000000000000        		dd	00000000h, 00000000h
+   442                                  		
+   443 000003D1 00000000<rept>          idt: times 256 dd 0	
+   444                                  
+   445                                  Code32_len 	equ $-CODE32
