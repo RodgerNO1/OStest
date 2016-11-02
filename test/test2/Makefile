@@ -15,7 +15,8 @@ do:
 clean:
 	rm -f *.o *.out *.bin
 	
-write:
+run:
 	BinWriter boot.bin 0 512 $(BOCHS_DIR)aa.img 0
-	BinWriter setup.bin 0 $(SETUP_SIZE) $(BOCHS_DIR)aa.img 512	
+	BinWriter setup.bin 0 $(SETUP_SIZE) $(BOCHS_DIR)aa.img 512
+	Run.bat
 

@@ -6,11 +6,11 @@
 [SECTION .code32]
 [BITS	32]
 CODE32:
-        jmp LABEL_CODE     ; 
+        jmp LABEL_CODE     ;
 
 ; GDT 选择子
 SelectorCode		equ		08h
-SelectorData		equ		10h	
+SelectorData		equ		10h
 SelectorVideo		equ		18h
 SelectorLdt0		equ		20h
 SelectorTss0		equ		28h
@@ -19,7 +19,7 @@ SelectorTss1		equ		38h
 
 LABEL_CODE:
 	call show_pm	;显示pm标志
-	
+
 	mov	ax,SelectorData
 	mov	ds,ax
 	mov	es,ax
@@ -39,14 +39,34 @@ LABEL_CODE:
     call Init8259A
 	call setClk		;initialize 8253/54
 ;-----main---------------------------------------------
-;	sti
-;	int 20h
-	jmp SelectorTss0:0
+
+	;手动设置当前任务TR，为切换任务做准备
+	pushf
+	and dword[esp],0ffffbfffh	;NT位复位(将NT置0),表示当前为非嵌套任务
+	popf
+	
+	mov eax,0
+	mov dword[current],eax
+
+	mov ax,28h
+	ltr ax
+	
+	mov ax,20h
+	lldt ax
+	
+	sti	
+	
+	push 17h
+	push 0eff0h
+	pushf
+	push 0fh
+	push task0
+	iret	;准备切换任务
 
 ;-------------------------------------------------------
 L6:
 	jmp L6	; main should never return here
-	
+
 ;------------------------------------------------------------------------------
 setGdt:
 		; 为加载 GDTR 作准备
@@ -57,7 +77,7 @@ setGdt:
 		; 加载 GDTR
 		lgdt	[GdtPtr]
 		ret
-		
+
 setIdt:
 		push eax
 		;制作时钟中断门
@@ -67,7 +87,7 @@ setIdt:
 		mov word[gate+2],ax
 		mov al,0
 		mov byte[gate+4],al
-		mov al,0eeh				;中断门,0eeh:PL3,08eh:PL0
+		mov al,08eh				;中断门,0eeh:PL3,08eh:PL0
 		mov byte[gate+5],al
 		mov ax,0
 		mov word[gate+6],ax
@@ -76,6 +96,22 @@ setIdt:
 		mov dword[idt+20h*8],eax
 		mov eax,dword[gate+4]
 		mov dword[idt+20h*8+4],eax
+		;制作普通中断门
+		mov ax,_UserIntHandler
+		mov word[gate],ax
+		mov ax,SelectorCode
+		mov word[gate+2],ax
+		mov al,0	;参数个数
+		mov byte[gate+4],al
+		mov al,0eeh				;中断门,0eeh:PL3,08eh:PL0
+		mov byte[gate+5],al
+		mov ax,0
+		mov word[gate+6],ax
+		;复制到中断表中
+		mov eax,dword[gate]
+		mov dword[idt+80h*8],eax
+		mov eax,dword[gate+4]
+		mov dword[idt+80h*8+4],eax
         lidt [_idtr]                       ;加载中断描述符表寄存器IDTR
 		pop eax
 		ret
@@ -84,7 +120,7 @@ setClk:
 	mov	al,36h
 	out	43h,al
 	wait
-	
+
 	mov	ax,11930;设置时钟中断频率(1193180/100)即100hz
 	out	40h,al
 	wait
@@ -95,7 +131,7 @@ setClk:
 show_pm:
 	mov	ax, SelectorVideo
 	mov	gs, ax			; 视频段选择子(目的)
-	
+
 	mov	edi, (80 * 11 + 79) * 2	; 屏幕第 11 行, 第 79 列。
 	mov	ah, 0Ch			; 0000: 黑底    1100: 红字
 	mov	al, 'P'
@@ -103,14 +139,14 @@ show_pm:
 	ret
 ;end show_pm
 
-; Init8259A 
+; Init8259A
 Init8259A:
 	mov	al, 011h
 	out	020h, al	; 主8259, ICW1.
 	call	io_delay
 
 	out	0A0h, al	; 从8259, ICW1.
-	call	io_delay   
+	call	io_delay
 
 	mov	al, 020h	; IRQ0 对应中断向量 0x20时钟中断
 	out	021h, al	; 主8259, ICW2.
@@ -152,46 +188,44 @@ io_delay:
 	nop
 	nop
 	ret
-	
+
 ; int handler ---------------------------------------------------------------
 _ClockHandler:
-	mov	al, 20h
-	out	20h, al				; 发送 EOI
-	mov eax,'A'
-	push eax
-	call put_char
-	pop	eax
-	iretd
-;	
 	push ds
 	push eax
 	mov	al, 20h
 	out	20h, al				; 发送 EOI
-	mov eax,SelectorData
+	
 	mov eax,1
-	cmp eax,current
+	mov ebx,dword[current]
+	cmp eax,ebx
 	je .t1
 	mov eax,1
 	mov dword[current],eax
-;	jmp SelectorTss1:0
-	jmp .t2	
+	jmp 38h:0
+	jmp .t2
 .t1:
 	mov eax,0
 	mov dword[current],eax
-;	jmp SelectorTss0:0
+	jmp 28h:0
 .t2:
 	pop eax
 	pop ds
 	iretd
 
 _UserIntHandler:
-	push gs
-	mov	ax, SelectorVideo
-	mov	gs, ax
-	mov	ah, 0Ch				; 0000: 黑底    1100: 红字
-	mov	al, 'I'
-	mov	[gs:((80 * 0 + 70) * 2)], ax	; 屏幕第 0 行, 第 70 列。
-	pop gs
+
+	cmp eax,0
+	je .lb0
+	push '|'
+	call put_char
+	pop eax
+	jmp .lb1
+.lb0:	
+	push '-'
+	call put_char
+	pop eax
+.lb1:
 	iretd
 
 _SpuriousHandler:
@@ -206,26 +240,27 @@ _SpuriousHandler:
 	iretd
 ;-------------------------------------------------------------------
 task0:
-	int 20h
-	;mov eax,'A'
-	;push eax
-	;call put_char
-	;pop eax
-	jmp task0
+	mov ax,17h
+	mov ds,ax
+.lop:	
+	mov eax,0
+	int 80h
+	jmp .lop
 	
 task1:
-	mov eax,'B'
-	push eax
-	call put_char
-	pop eax
-	jmp task1
+	mov ax,17h
+	mov ds,ax
+.lop:	
+	mov eax,1
+	int 80h
+	jmp .lop
 ;-------------------------------------------------------------------
 _sys_get_cursor:;以下取当前光标位置ax
          mov dx,0x3d4
          mov al,0x0e
          out dx,al
          mov dx,0x3d5
-         in al,dx                        ;高8位 
+         in al,dx                        ;高8位
          mov ah,al
 
          mov dx,0x3d4
@@ -234,7 +269,7 @@ _sys_get_cursor:;以下取当前光标位置ax
          mov dx,0x3d5
          in al,dx                        ;低8位 AX=代表光标位置的16位数
 		 ret
-;end _sys_get_cursor		 
+;end _sys_get_cursor
 
 put_char:                                ;显示一个字符 vl=字符ascii
 		 push ds
@@ -242,24 +277,24 @@ put_char:                                ;显示一个字符 vl=字符ascii
 		 push gs
 		 push ebp
 		 mov ebp,esp
-		 
+
 		 mov ecx,[ebp+20]				;CX 存放字符
          ;以下取当前光标位置
 		 call _sys_get_cursor
 		 mov ebx,eax						;BX 存放光标位置
-		 
+
 		 mov eax, SelectorVideo
 		 mov gs, eax			; 视频段选择子
-		 
+
          cmp cl,0x0d                     ;回车符？
-         je .put_0a0d                     ;不是。看看是不是换行等字符 
+         je .put_0a0d                     ;不是。看看是不是换行等字符
 		 cmp cl,0x0a
 		 je .put_0a0d
          jmp .put_other
 
  .put_0a0d:
-         mov eax,ebx                      
-         mov bl,80                       
+         mov eax,ebx
+         mov bl,80
          div bl
          mul bl
          mov ebx,eax	;回到行首
@@ -295,17 +330,17 @@ put_char:                                ;显示一个字符 vl=字符ascii
 
          mov ebx,1920
 
-	 
+
 .set_cursor:
-		
+
 		call local_set_cursor
-		
+
 		 pop ebp
 		 pop gs
 		 pop es
 		 pop ds
 		 ret
-;end  _sys_put_char 
+;end  _sys_put_char
 
 local_set_cursor:;参数BX
 		 mov dx,0x3d4
@@ -320,17 +355,17 @@ local_set_cursor:;参数BX
          mov dx,0x3d5
          mov al,bl
          out dx,al
-		 ret	
+		 ret
 
-		 
-;======================data======================================== 
+
+;======================data========================================
 
 LABEL_DATA:
-			
+
 current dd 0x0
 _idtr:  dw	256*8-1		;IDT的界限
         dd	idt	;中断描述符表的线性地址
-		
+
 gate:
 	dw	0000h;baseL
 	dw	0000h;seletor
@@ -340,76 +375,82 @@ gate:
 
 
 ; GDT
-LABEL_GDT:
+LABEL_GDT:;00h
 	dw 	0000h,0000h	;limit,baseL
 	db	00h			;baseM
 	dw	0000h		;gran,type
 	db	00h			;baseH
-DESC_CODE:
+DESC_CODE:;08h
 	dw 	0FFFFh,0000h
 	db	00h
 	dw	0C09Ah
 	db	00h
-DESC_DATA:
+DESC_DATA:;10h
 	dw 	0FFFFh,0000h
 	db	00h
 	dw	8092h
 	db	00h
-DESC_VIDEO:
+DESC_VIDEO:;18h
 	dw 	0FFFFh,8000h
 	db	0Bh
 	dw	0092h
 	db	00h
-DESC_LDT0:
-	dw 	001fh,_ldt0
+DESC_LDT0:;20h
+	dw 	0040h,_ldt0
 	db	00h
-	dw	0082h
+	dw	00e2h	;00e2:DPL3,0082h:DPL0
 	db	00h
-DESC_TSS0:
-	dw 	0067h,_tss0
+DESC_TSS0:;28h
+	dw 	0068h,_tss0
 	db	00h
-	dw	0089h
+	dw	00e9h
 	db	00h
-DESC_LDT1:
-	dw 	001fh,_ldt1
+DESC_LDT1:;30h
+	dw 	0040h,_ldt1
 	db	00h
-	dw	0082h
+	dw	00e2h
 	db	00h
-DESC_TSS1:
-	dw 	0067h,_tss1
+DESC_TSS1:;38h
+	dw 	0068h,_tss1
 	db	00h
-	dw	0089h
+	dw	00e9h
 	db	00h
 GdtLen		equ	$ - LABEL_GDT	; GDT长度
 GdtPtr		dw	GdtLen - 1		; GDT界限
 			dd	0				; GDT基地址
 ; GDT 结束
-		
+
 _tss0:	dd	0000h                  ;back link
 		dd	0eff0h, 0010h 			;esp0,  ss0
 		dd	0000h, 0000h           ;esp1,  ss1
 		dd	0000h, 0000h           ;esp2,  ss2
 		dd	0000h                  ;cr3
 		dd	0000h                  ;eip
-		dd	0200h                  ;eflags
+		dd	0000h                  ;eflags
 		dd	0000h, 0000h, 0000h, 0000h
                                    ;eax,  ecx,  edx,  ebx
-		dd	0cff0h            ;esp
+		dd	0000h            ;esp
 		dd	0000h, 0000h, 0000h    ;ebp, esi, edi
-		dd	0017h, 000fh, 0017h, 0017h, 0017h, 0017h
+		dd	0000h, 0000h, 0000h, 0000h, 0000h, 0000h
 						           ;es,  cs,  ss,  ds,  fs,  gs
-		dd	SelectorLdt0		       ;ldt
+		dd	20h		       			;ldt
 		dd	8000000h		       ;trace bitmap
+
+
 _ldt0:	dd	00000000h, 00000000h   ;dummy
-		dw 	0FFFFh,task0
+		dw 	0FFFFh,0000h			;与GDT中CODE描述符一致，只改DPL
 		db	00h
 		dw	0C0FAh
 		db	00h
-		dd	00000fffh, 00c0f200h   ;task 0 data segment
-		dd	00000000h, 00000000h	
 		
+		dw 	0FFFFh,0000h		;task 0 data segment
+		db	00h
+		dw	80F2h
+		db	00h   
+		dd	00000000h, 00000000h	;dummy
+
 _tss1:	dd	0000h                  ;back link
-		dd	0dff0h, 0030h 			;esp0,  ss0
+		dd	0dff0h, 0010h 			;esp0,  ss0
 		dd	0000h, 0000h           ;esp1,  ss1
 		dd	0000h, 0000h           ;esp2,  ss2
 		dd	0000h                  ;cr3
@@ -421,7 +462,7 @@ _tss1:	dd	0000h                  ;back link
 		dd	0000h, 0000h, 0000h    ;ebp, esi, edi
 		dd	0017h, 000fh, 0017h, 0017h, 0017h, 0017h
 						           ;es,  cs,  ss,  ds,  fs,  gs
-		dd	SelectorLdt1		       ;ldt
+		dd	30h		       ;ldt
 		dd	8000000h		       ;trace bitmap
 ;LDT0 for task 0,Every task must have private ldt.
 _ldt1:	dd	00000000h, 00000000h   ;dummy
@@ -431,7 +472,7 @@ _ldt1:	dd	00000000h, 00000000h   ;dummy
 		db	00h
 		dd	00000fffh, 00c0f200h   ;task 1 data segment
 		dd	00000000h, 00000000h
-		
-idt: times 256 dd 0	
+
+idt: times 256 dd 0
 
 Code32_len 	equ $-CODE32
